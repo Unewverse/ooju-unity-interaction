@@ -314,4 +314,3 @@ namespace OojuInteractionPlugin
         public Color downloadButtonColor => Color.cyan;
     }
 }
-// ... 이하 기존 코드 전체 붙여넣기 (클래스 내부 전체 구현 포함) ... 

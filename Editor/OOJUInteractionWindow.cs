@@ -2,8 +2,7 @@ using UnityEditor;
 using UnityEngine;
 using System.Collections.Generic;
 using System;
-using OojuCustomPlugin;
-using OojuCustomPlugin.Animations;
+using OojuInteractionPlugin;
 
 namespace OojuCustomPlugin
 {
@@ -22,7 +21,7 @@ namespace OojuCustomPlugin
         private bool caigApiKeyShow = false;
 
         // Animation state variables
-        private AnimationType selectedAnimationType = AnimationType.None;
+        private OojuInteractionPlugin.AnimationType selectedAnimationType = OojuInteractionPlugin.AnimationType.None;
         private float hoverSpeed = 1f;
         private float hoverDistance = 0.1f;
         private float wobbleSpeed = 2f;
@@ -189,24 +188,24 @@ namespace OojuCustomPlugin
                 EditorGUILayout.HelpBox("Independent animations are applied to each object individually (e.g., Hover, Wobble, Spin, Shake, Bounce).", MessageType.Info);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Label("Animation Type:", GUILayout.Width(100));
-                selectedAnimationType = (AnimationType)EditorGUILayout.EnumPopup(selectedAnimationType);
+                selectedAnimationType = (OojuInteractionPlugin.AnimationType)EditorGUILayout.EnumPopup(selectedAnimationType);
                 EditorGUILayout.EndHorizontal();
-                if (selectedAnimationType != AnimationType.None)
+                if (selectedAnimationType != OojuInteractionPlugin.AnimationType.None)
                 {
                     EditorGUILayout.Space();
                     EditorGUILayout.LabelField("Animation Parameters", EditorStyles.boldLabel);
                     EditorGUI.indentLevel++;
                     switch (selectedAnimationType)
                     {
-                        case AnimationType.Hover:
+                        case OojuInteractionPlugin.AnimationType.Hover:
                             hoverSpeed = EditorGUILayout.FloatField("Hover Speed", hoverSpeed);
                             hoverDistance = EditorGUILayout.FloatField("Hover Distance", hoverDistance);
                             break;
-                        case AnimationType.Wobble:
+                        case OojuInteractionPlugin.AnimationType.Wobble:
                             wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", wobbleSpeed);
                             wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", wobbleAngle);
                             break;
-                        case AnimationType.Scale:
+                        case OojuInteractionPlugin.AnimationType.Scale:
                             // Scale parameters
                             break;
                     }
@@ -255,17 +254,17 @@ namespace OojuCustomPlugin
 
                                 switch (selectedAnimationType)
                                 {
-                                    case AnimationType.Hover:
+                                    case OojuInteractionPlugin.AnimationType.Hover:
                                         animator.SetAnimationType(selectedAnimationType);
                                         animator.hoverSpeed = hoverSpeed;
                                         animator.baseHoverDistance = hoverDistance;
                                         break;
-                                    case AnimationType.Wobble:
+                                    case OojuInteractionPlugin.AnimationType.Wobble:
                                         animator.SetAnimationType(selectedAnimationType);
                                         animator.wobbleSpeed = wobbleSpeed;
                                         animator.baseWobbleAngle = wobbleAngle;
                                         break;
-                                    case AnimationType.Scale:
+                                    case OojuInteractionPlugin.AnimationType.Scale:
                                         animator.SetAnimationType(selectedAnimationType);
                                         break;
                                 }
