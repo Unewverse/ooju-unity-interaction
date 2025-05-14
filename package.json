@@ -1,0 +1,26 @@
+{
+  "name": "com.ooju.interaction",
+  "displayName": "OOJU Interaction",
+  "version": "0.1.0",
+  "unity": "2021.3",
+  "description": "A modular Unity Editor extension for AI-powered scene analysis and context-aware interaction generation.",
+  "author": {
+    "name": "OOJU",
+    "email": "contact@ooju.world",
+    "url": "https://github.com/Unewverse/ooju-unity-interaction"
+  },
+  "license": "MIT",
+  "keywords": [
+    "unity",
+    "editor",
+    "ai",
+    "openai",
+    "scene",
+    "animation",
+    "toolkit",
+    "interaction"
+  ],
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.0.2"
+  }
+}
