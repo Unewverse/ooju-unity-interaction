@@ -1,8 +1,8 @@
 using UnityEditor;
 using UnityEngine;
-using OojuCustomPlugin.Animations;
+using OojuInteractionPlugin;
 
-namespace OojuCustomPlugin
+namespace OojuInteractionPlugin
 {
 public class ObjectAutoAnimatorPopup : EditorWindow
 {
