@@ -278,6 +278,68 @@ namespace OojuInteractionPlugin
             }
         }
 
+        // Sends a prompt to OpenAI and returns the response content for Sentence-to-Interaction
+        public static async Task<string> RequestLLMInteraction(string prompt)
+        {
+            try
+            {
+                string apiKey = OISettings.Instance.ApiKey;
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    throw new Exception("OpenAI API Key is not set");
+                }
+
+                var requestData = new
+                {
+                    model = SUGGESTION_MODEL,
+                    messages = new[]
+                    {
+                        new { role = "user", content = prompt }
+                    },
+                    max_tokens = 800,
+                    temperature = 0.6
+                };
+
+                string jsonData = JsonConvert.SerializeObject(requestData);
+
+                using (UnityWebRequest request = new UnityWebRequest(OPENAI_API_URL, "POST"))
+                {
+                    byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
+                    request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    request.downloadHandler = new DownloadHandlerBuffer();
+                    request.SetRequestHeader("Content-Type", "application/json");
+                    request.SetRequestHeader("Authorization", $"Bearer {apiKey}");
+
+                    await request.SendWebRequest();
+
+                    if (request.result == UnityWebRequest.Result.Success)
+                    {
+                        var response = JsonConvert.DeserializeObject<OpenAIResponse>(request.downloadHandler.text);
+                        return response?.choices?[0]?.message?.content ?? "No response generated";
+                    }
+                    else
+                    {
+                        string errorMessage = $"OpenAI API Error: {request.error}";
+                        if (request.responseCode == 401)
+                        {
+                            errorMessage = "Invalid API Key. Please check your API Key in the CAIG Settings window.";
+                        }
+                        else if (request.responseCode == 404)
+                        {
+                            errorMessage = "API endpoint not found. Please check if the model name is correct.";
+                        }
+                        Debug.LogError(errorMessage);
+                        return errorMessage;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Error calling OpenAI API: {e.Message}");
+                return $"Error: {e.Message}";
+            }
+        }
+
         [Serializable]
         public class OpenAIResponse
         {

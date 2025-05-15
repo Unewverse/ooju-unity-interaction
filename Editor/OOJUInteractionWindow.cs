@@ -3,6 +3,8 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 using OojuInteractionPlugin;
+using System.IO;
+using System.Linq;
 
 namespace OojuInteractionPlugin
 {
@@ -58,6 +60,18 @@ namespace OojuInteractionPlugin
 
         private string userInteractionInput = "";
 
+        // Stores the result from Sentence-to-Interaction
+        private string sentenceToInteractionResult = "";
+
+        // Stores the found objects from the last interaction
+        private List<GameObject> foundSuggestedObjects = new List<GameObject>();
+        private string lastGeneratedScriptPath = "";
+        private string lastSuggestedObjectNames = "";
+
+        // Stores the summary of the generated script
+        private string lastScriptSummary = "";
+        private Vector2 lastScriptSummaryScroll = Vector2.zero;
+
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
         {
@@ -69,6 +83,8 @@ namespace OojuInteractionPlugin
             styles = new UIStyles();
             caigApiKey = OISettings.Instance.ApiKey;
             caigApiKeyTemp = caigApiKey;
+            // Set minimum window size
+            minSize = new Vector2(500, 700);
         }
 
         private void OnGUI()
@@ -101,12 +117,12 @@ namespace OojuInteractionPlugin
         // Interaction Tools tab UI (minimal skeleton)
         private void DrawInteractionToolsTab(float contentWidth, float buttonWidth)
         {
-            mainScrollPosition = EditorGUILayout.BeginScrollView(mainScrollPosition);
-            EditorGUILayout.BeginVertical();
+            mainScrollPosition = EditorGUILayout.BeginScrollView(mainScrollPosition, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Space(20);
 
             // Description & Analysis section
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             EditorGUILayout.LabelField("Scene Description & Analysis", EditorStyles.boldLabel);
             GUILayout.Space(5);
@@ -126,8 +142,8 @@ namespace OojuInteractionPlugin
             {
                 GUILayout.Space(10);
                 EditorGUILayout.LabelField("Current Scene Description:", EditorStyles.boldLabel);
-                descriptionScrollPosition = EditorGUILayout.BeginScrollView(descriptionScrollPosition, GUILayout.Height(100));
-                EditorGUILayout.TextArea(sceneDescription, EditorStyles.wordWrappedLabel);
+                descriptionScrollPosition = EditorGUILayout.BeginScrollView(descriptionScrollPosition, GUILayout.Height(100), GUILayout.ExpandWidth(true));
+                EditorGUILayout.TextArea(sceneDescription, EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
                 EditorGUILayout.EndScrollView();
             }
             GUILayout.Space(10);
@@ -135,36 +151,62 @@ namespace OojuInteractionPlugin
 
             GUILayout.Space(20);
 
-            // Text Input for LLM Interaction section
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            // Sentence-to-Interaction section
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
-            EditorGUILayout.LabelField("LLM Interaction", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Sentence-to-Interaction", EditorStyles.boldLabel);
             GUILayout.Space(5);
-            EditorGUILayout.LabelField("Describe the interaction you want to create", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("Describe the interaction you want to create as a single sentence", EditorStyles.miniLabel);
             GUILayout.Space(10);
-            
             // Text input area
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, GUILayout.Height(60));
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
+            userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, GUILayout.Height(60), GUILayout.ExpandWidth(true));
             EditorGUILayout.EndVertical();
-            
             GUILayout.Space(10);
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Generate Interaction", GUILayout.Width(buttonWidth), GUILayout.Height(30)))
             {
-                // TODO: Implement LLM interaction generation
-                EditorUtility.DisplayDialog("Coming Soon", "This feature will be implemented soon!", "OK");
+                GenerateSentenceToInteraction();
             }
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(10);
+            if (!string.IsNullOrEmpty(sentenceToInteractionResult))
+            {
+                GUILayout.Space(10);
+                // Show script summary in a scrollable TextArea
+                if (!string.IsNullOrEmpty(lastScriptSummary))
+                {
+                    EditorGUILayout.LabelField("Script Summary / How to Apply:", EditorStyles.boldLabel);
+                    lastScriptSummaryScroll = EditorGUILayout.BeginScrollView(lastScriptSummaryScroll, GUILayout.Height(80), GUILayout.ExpandWidth(true));
+                    EditorGUILayout.TextArea(lastScriptSummary, EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
+                    EditorGUILayout.EndScrollView();
+                }
+                if (!string.IsNullOrEmpty(lastGeneratedScriptPath))
+                {
+                    EditorGUILayout.HelpBox($"Generated script saved to: {lastGeneratedScriptPath}", MessageType.Info);
+                }
+                if (!string.IsNullOrEmpty(lastSuggestedObjectNames))
+                {
+                    EditorGUILayout.LabelField("Suggested Object Name(s):", EditorStyles.boldLabel);
+                    EditorGUILayout.TextField(lastSuggestedObjectNames);
+                }
+                if (foundSuggestedObjects != null && foundSuggestedObjects.Count > 0)
+                {
+                    EditorGUILayout.LabelField("Found in Scene:", EditorStyles.boldLabel);
+                    foreach (var obj in foundSuggestedObjects)
+                    {
+                        EditorGUILayout.ObjectField(obj, typeof(GameObject), true);
+                    }
+                }
+            }
             EditorGUILayout.EndVertical();
 
             GUILayout.Space(20);
 
             // Interaction Suggestions section
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             EditorGUILayout.LabelField("Interaction Suggestions", EditorStyles.boldLabel);
             GUILayout.Space(5);
@@ -204,7 +246,7 @@ namespace OojuInteractionPlugin
             GUILayout.Space(20);
 
             // Animation section
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
             GUILayout.Space(5);
@@ -254,7 +296,7 @@ namespace OojuInteractionPlugin
                         {
                             foreach (var obj in selectedObjects)
                             {
-                                // Collider 자동 추가
+                                // Collider auto add
                                 var collider = obj.GetComponent<Collider>();
                                 if (collider == null)
                                 {
@@ -532,6 +574,7 @@ namespace OojuInteractionPlugin
         private async void GenerateDescriptionInternal()
         {
             isGeneratingDescription = true;
+            EditorUtility.DisplayProgressBar("Generating Scene Description", "Please wait while the scene is being analyzed...", 0.5f);
             Repaint();
             try
             {
@@ -554,6 +597,7 @@ namespace OojuInteractionPlugin
             finally
             {
                 isGeneratingDescription = false;
+                EditorUtility.ClearProgressBar();
                 Repaint();
             }
         }
@@ -574,6 +618,7 @@ namespace OojuInteractionPlugin
             }
 
             isGeneratingDescription = true;
+            EditorUtility.DisplayProgressBar("Generating Suggestions", "Please wait while suggestions are being generated...", 0.5f);
             Repaint();
             try
             {
@@ -589,8 +634,216 @@ namespace OojuInteractionPlugin
             finally
             {
                 isGeneratingDescription = false;
+                EditorUtility.ClearProgressBar();
                 Repaint();
             }
+        }
+
+        // Generates the interaction using OpenAI based on the user's sentence and scene description
+        private async void GenerateSentenceToInteraction()
+        {
+            if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
+            {
+                EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
+                return;
+            }
+            if (string.IsNullOrEmpty(sceneDescription))
+            {
+                EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
+                return;
+            }
+            if (string.IsNullOrEmpty(userInteractionInput))
+            {
+                EditorUtility.DisplayDialog("Error", "Please enter an interaction description.", "OK");
+                return;
+            }
+
+            isGeneratingDescription = true;
+            EditorUtility.DisplayProgressBar("Generating Interaction", "Please wait while the interaction is being generated...", 0.5f);
+            Repaint();
+
+            try
+            {
+                string prompt = $"Scene Description:\n{sceneDescription}\n\nUser Request (Sentence):\n{userInteractionInput}\n\n" +
+                                "1. Explain how this can be implemented in Unity.\n" +
+                                "2. Identify the most suitable object(s) in the current scene for this interaction.\n" +
+                                "3. Provide the relevant Unity C# script code for this interaction.";
+
+                sentenceToInteractionResult = await OIDescriptor.RequestLLMInteraction(prompt);
+
+                // Extract code and save script
+                string code = ExtractCodeBlock(sentenceToInteractionResult);
+                if (!string.IsNullOrEmpty(code))
+                {
+                    lastGeneratedScriptPath = SaveGeneratedScript(code);
+                }
+                else
+                {
+                    lastGeneratedScriptPath = "No code block found.";
+                }
+
+                // Extract summary
+                lastScriptSummary = ExtractScriptSummary(sentenceToInteractionResult);
+
+                // Extract suggested object names from the result
+                lastSuggestedObjectNames = ExtractSuggestedObjectNames(sentenceToInteractionResult);
+                foundSuggestedObjects = FindObjectsInSceneByNames(lastSuggestedObjectNames);
+
+                EditorUtility.DisplayDialog("Sentence-to-Interaction", "Interaction generated successfully.\nScript saved to: " + lastGeneratedScriptPath, "OK");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error generating Sentence-to-Interaction: {ex.Message}");
+                EditorUtility.DisplayDialog("Error", $"Error generating interaction: {ex.Message}", "OK");
+                sentenceToInteractionResult = $"Error: {ex.Message}";
+                lastGeneratedScriptPath = "";
+                lastSuggestedObjectNames = "";
+                foundSuggestedObjects.Clear();
+                lastScriptSummary = "";
+            }
+            finally
+            {
+                isGeneratingDescription = false;
+                EditorUtility.ClearProgressBar();
+                Repaint();
+            }
+        }
+
+        // Extracts the first C# code block from the LLM result
+        private string ExtractCodeBlock(string result)
+        {
+            int start = result.IndexOf("```csharp");
+            if (start == -1) start = result.IndexOf("```cs");
+            if (start == -1) start = result.IndexOf("```");
+            if (start == -1) return null;
+
+            int codeStart = result.IndexOf('\n', start);
+            int end = result.IndexOf("```", codeStart + 1);
+            if (codeStart == -1 || end == -1) return null;
+
+            return result.Substring(codeStart + 1, end - codeStart - 1).Trim();
+        }
+
+        // Extracts suggested object names from the LLM result (simple heuristic)
+        private string ExtractSuggestedObjectNames(string result)
+        {
+            // Look for a line like 'Object(s): ...' or 'Object: ...'
+            using (StringReader reader = new StringReader(result))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (line.StartsWith("Object(s):", StringComparison.OrdinalIgnoreCase) || line.StartsWith("Object:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int idx = line.IndexOf(":");
+                        if (idx != -1 && idx + 1 < line.Length)
+                        {
+                            return line.Substring(idx + 1).Trim();
+                        }
+                    }
+                }
+            }
+            return string.Empty;
+        }
+
+        // Finds GameObjects in the scene by comma-separated names
+        private List<GameObject> FindObjectsInSceneByNames(string names)
+        {
+            List<GameObject> found = new List<GameObject>();
+            if (string.IsNullOrEmpty(names)) return found;
+            string[] split = names.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string rawName in split)
+            {
+                string name = rawName.Trim();
+                if (string.IsNullOrEmpty(name)) continue;
+                GameObject obj = GameObject.Find(name);
+                if (obj != null && !found.Contains(obj))
+                    found.Add(obj);
+            }
+            return found;
+        }
+
+        // Saves the generated script code to a new C# file in the project, returns the file path
+        private string SaveGeneratedScript(string scriptCode, string className = null)
+        {
+            string directory = "Assets/OOJU/Interaction/Generated";
+            if (!Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+
+            // Generate a file name from the interaction sentence if not provided
+            if (string.IsNullOrEmpty(className))
+            {
+                className = GenerateClassNameFromSentence(userInteractionInput);
+            }
+
+            // Add timestamp to class name to avoid duplicates
+            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            className = $"{className}_{timestamp}";
+
+            // Replace the class name inside the script code as well
+            scriptCode = ReplaceClassNameInScript(scriptCode, className);
+
+            string filePath = Path.Combine(directory, $"{className}.cs");
+            File.WriteAllText(filePath, scriptCode);
+            AssetDatabase.Refresh();
+            return filePath;
+        }
+
+        // Replaces the first class name in the script code with the given class name
+        private string ReplaceClassNameInScript(string scriptCode, string newClassName)
+        {
+            if (string.IsNullOrEmpty(scriptCode) || string.IsNullOrEmpty(newClassName)) return scriptCode;
+            // Find 'class <Name>' and replace with newClassName
+            var regex = new System.Text.RegularExpressions.Regex(@"class\\s+([A-Za-z_][A-Za-z0-9_]*)");
+            return regex.Replace(scriptCode, $"class {newClassName}", 1);
+        }
+
+        // Generates a valid C# class/file name from the interaction sentence
+        private string GenerateClassNameFromSentence(string sentence)
+        {
+            if (string.IsNullOrEmpty(sentence)) return "GeneratedInteractionScript";
+            // Remove non-alphanumeric characters, replace spaces with underscores, limit length
+            string name = new string(sentence.Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
+            name = name.Trim().Replace(' ', '_');
+            if (name.Length > 32) name = name.Substring(0, 32);
+            if (string.IsNullOrEmpty(name)) name = "GeneratedInteractionScript";
+            // Ensure it starts with a letter
+            if (!char.IsLetter(name[0])) name = "Script_" + name;
+            return name;
+        }
+
+        // Extracts a brief summary of the generated script from the LLM result
+        private string ExtractScriptSummary(string result)
+        {
+            // Look for a line starting with 'Summary:' or 'Description:'
+            using (StringReader reader = new StringReader(result))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (line.StartsWith("Summary:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("Description:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int idx = line.IndexOf(":");
+                        if (idx != -1 && idx + 1 < line.Length)
+                        {
+                            return line.Substring(idx + 1).Trim();
+                        }
+                    }
+                }
+            }
+            // Fallback: use the first non-empty line
+            using (StringReader reader = new StringReader(result))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("```"))
+                    {
+                        return line.Trim();
+                    }
+                }
+            }
+            return "No summary available.";
         }
     }
 } 
