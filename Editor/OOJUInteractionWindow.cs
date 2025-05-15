@@ -175,14 +175,16 @@ namespace OojuInteractionPlugin
             if (!string.IsNullOrEmpty(sentenceToInteractionResult))
             {
                 GUILayout.Space(10);
-                // Show script summary in a scrollable TextArea
-                if (!string.IsNullOrEmpty(lastScriptSummary))
-                {
-                    EditorGUILayout.LabelField("Script Summary / How to Apply:", EditorStyles.boldLabel);
-                    lastScriptSummaryScroll = EditorGUILayout.BeginScrollView(lastScriptSummaryScroll, GUILayout.Height(80), GUILayout.ExpandWidth(true));
-                    EditorGUILayout.TextArea(lastScriptSummary, EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
-                    EditorGUILayout.EndScrollView();
-                }
+                // Always show How to Apply instructions (fixed English text)
+                EditorGUILayout.LabelField("How to Apply:", EditorStyles.boldLabel);
+                lastScriptSummaryScroll = EditorGUILayout.BeginScrollView(lastScriptSummaryScroll, GUILayout.Height(100), GUILayout.ExpandWidth(true));
+                EditorGUILayout.TextArea(
+                    "1. The generated script is saved in: Assets/OOJU/Interaction/Generated/\n" +
+                    "2. In the Unity Editor, select the GameObject you want to apply the script to.\n" +
+                    "3. In the Inspector window, click 'Add Component' and search for the script by name, or drag and drop the script from the Project window onto the GameObject.\n" +
+                    "4. If the script requires a target object (e.g., another GameObject), assign it by dragging the desired object from the Hierarchy to the corresponding field in the Inspector.",
+                    EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
+                EditorGUILayout.EndScrollView();
                 if (!string.IsNullOrEmpty(lastGeneratedScriptPath))
                 {
                     EditorGUILayout.HelpBox($"Generated script saved to: {lastGeneratedScriptPath}", MessageType.Info);
@@ -682,9 +684,6 @@ namespace OojuInteractionPlugin
                     lastGeneratedScriptPath = "No code block found.";
                 }
 
-                // Extract summary
-                lastScriptSummary = ExtractScriptSummary(sentenceToInteractionResult);
-
                 // Extract suggested object names from the result
                 lastSuggestedObjectNames = ExtractSuggestedObjectNames(sentenceToInteractionResult);
                 foundSuggestedObjects = FindObjectsInSceneByNames(lastSuggestedObjectNames);
@@ -699,7 +698,6 @@ namespace OojuInteractionPlugin
                 lastGeneratedScriptPath = "";
                 lastSuggestedObjectNames = "";
                 foundSuggestedObjects.Clear();
-                lastScriptSummary = "";
             }
             finally
             {
@@ -810,40 +808,6 @@ namespace OojuInteractionPlugin
             // Ensure it starts with a letter
             if (!char.IsLetter(name[0])) name = "Script_" + name;
             return name;
-        }
-
-        // Extracts a brief summary of the generated script from the LLM result
-        private string ExtractScriptSummary(string result)
-        {
-            // Look for a line starting with 'Summary:' or 'Description:'
-            using (StringReader reader = new StringReader(result))
-            {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    if (line.StartsWith("Summary:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("Description:", StringComparison.OrdinalIgnoreCase))
-                    {
-                        int idx = line.IndexOf(":");
-                        if (idx != -1 && idx + 1 < line.Length)
-                        {
-                            return line.Substring(idx + 1).Trim();
-                        }
-                    }
-                }
-            }
-            // Fallback: use the first non-empty line
-            using (StringReader reader = new StringReader(result))
-            {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("```"))
-                    {
-                        return line.Trim();
-                    }
-                }
-            }
-            return "No summary available.";
         }
     }
 } 
