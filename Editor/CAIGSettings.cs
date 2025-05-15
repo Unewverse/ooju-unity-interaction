@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 namespace OojuInteractionPlugin
 {
@@ -40,7 +41,15 @@ namespace OojuInteractionPlugin
         // Property implementations
         public string ApiKey
         {
-            get => apiKey;
+            get
+            {
+                // Priority: Environment variable
+                string envKey = Environment.GetEnvironmentVariable("OOJU_OPENAI_API_KEY");
+                if (!string.IsNullOrEmpty(envKey))
+                    return envKey;
+                // Fallback: PlayerPrefs or asset value
+                return apiKey;
+            }
             set { apiKey = value; SaveSettings(); }
         }
 

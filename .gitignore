@@ -47,3 +47,6 @@ crashlytics-build.properties
 
 # Ignore package manager cache
 Packages/com.unity.package-manager-ui/
+
+# Ignore sensitive settings assets
+Assets/OOJUInteraction/ooju-unity-interaction/Resources/OISettings.asset
