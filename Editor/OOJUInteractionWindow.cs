@@ -56,6 +56,8 @@ namespace OojuInteractionPlugin
 
         private UIStyles styles;
 
+        private string userInteractionInput = "";
+
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
         {
@@ -128,6 +130,34 @@ namespace OojuInteractionPlugin
                 EditorGUILayout.TextArea(sceneDescription, EditorStyles.wordWrappedLabel);
                 EditorGUILayout.EndScrollView();
             }
+            GUILayout.Space(10);
+            EditorGUILayout.EndVertical();
+
+            GUILayout.Space(20);
+
+            // Text Input for LLM Interaction section
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            GUILayout.Space(10);
+            EditorGUILayout.LabelField("LLM Interaction", EditorStyles.boldLabel);
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField("Describe the interaction you want to create", EditorStyles.miniLabel);
+            GUILayout.Space(10);
+            
+            // Text input area
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, GUILayout.Height(60));
+            EditorGUILayout.EndVertical();
+            
+            GUILayout.Space(10);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Generate Interaction", GUILayout.Width(buttonWidth), GUILayout.Height(30)))
+            {
+                // TODO: Implement LLM interaction generation
+                EditorUtility.DisplayDialog("Coming Soon", "This feature will be implemented soon!", "OK");
+            }
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
             GUILayout.Space(10);
             EditorGUILayout.EndVertical();
 
