@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-namespace OojuCustomPlugin
+namespace OojuInteractionPlugin
 {
     public static class CAIGAnalyzer
     {

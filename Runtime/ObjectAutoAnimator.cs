@@ -6,6 +6,16 @@ using System.Linq;
 
 namespace OojuInteractionPlugin
 {
+    public enum RelationalType
+    {
+        None,
+        Orbit,
+        LookAt,
+        Follow,
+        MoveAlongPath,
+        SnapToObject
+    }
+
     // Core interfaces and classes
     public interface IObjectAnimation
     {
