@@ -11,17 +11,8 @@ public class ObjectAutoAnimatorPopup : EditorWindow
     private GameObject targetObject;
     private AnimationType animationType = AnimationType.Hover;
 
-    // Animation parameters (default values)
-    private float hoverSpeed = 1f;
-    private float baseHoverDistance = 0.1f;
-    private float wobbleSpeed = 2f;
-    private float baseWobbleAngle = 5f;
-    private float spinSpeed = 90f;
-    private float shakeDuration = 0.5f;
-    private float baseShakeMagnitude = 0.1f;
-    private float bounceSpeed = 1f;
-    private float baseBounceHeight = 0.5f;
-    private float squashStretchRatio = 0.1f;
+    // AnimationPreset ScriptableObject reference
+    public AnimationPreset preset;
 
     public static void ShowWindow(GameObject obj)
     {
@@ -49,12 +40,10 @@ public class ObjectAutoAnimatorPopup : EditorWindow
         switch (animationType)
         {
             case AnimationType.Hover:
-                hoverSpeed = EditorGUILayout.FloatField("Hover Speed", hoverSpeed);
-                baseHoverDistance = EditorGUILayout.FloatField("Base Hover Distance", baseHoverDistance);
+                // Add hover parameters if needed
                 break;
             case AnimationType.Wobble:
-                wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", wobbleSpeed);
-                baseWobbleAngle = EditorGUILayout.FloatField("Base Wobble Angle", baseWobbleAngle);
+                // Add wobble parameters if needed
                 break;
             case AnimationType.Scale:
                 // Add scale parameters if needed
@@ -86,16 +75,6 @@ public class ObjectAutoAnimatorPopup : EditorWindow
         Undo.RecordObject(animator, "Set ObjectAutoAnimator Properties");
         animator.SetAnimationType(animationType);
         // Set parameters for each type
-        animator.hoverSpeed = hoverSpeed;
-        animator.baseHoverDistance = baseHoverDistance;
-        animator.wobbleSpeed = wobbleSpeed;
-        animator.baseWobbleAngle = baseWobbleAngle;
-        animator.spinSpeed = spinSpeed;
-        animator.shakeDuration = shakeDuration;
-        animator.baseShakeMagnitude = baseShakeMagnitude;
-        animator.bounceSpeed = bounceSpeed;
-        animator.baseBounceHeight = baseBounceHeight;
-        animator.squashStretchRatio = squashStretchRatio;
         EditorUtility.SetDirty(animator);
     }
 }

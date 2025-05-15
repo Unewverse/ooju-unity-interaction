@@ -1,4 +1,5 @@
-// AnimationType enum for object animations
+using UnityEngine;
+
 namespace OojuInteractionPlugin
 {
     public enum AnimationType
@@ -6,7 +7,10 @@ namespace OojuInteractionPlugin
         None,
         Hover,
         Wobble,
-        Scale,
-        // Add more animation types as needed
+        Spin,
+        Shake,
+        Bounce,
+        Scale
+        // Add more as needed
     }
 } 

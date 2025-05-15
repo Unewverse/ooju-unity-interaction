@@ -1,8 +1,9 @@
 using UnityEngine;
-using System.Collections;
 using UnityEditor;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using OojuInteractionPlugin;
 
 namespace OojuInteractionPlugin
 {
@@ -24,9 +25,7 @@ namespace OojuInteractionPlugin
         void StopAnimation();
         void ResetToInitialState();
     }
-
-    public class DefaultSettingsProvider { }
-
+    
     public class ObjectAnimationFactory
     {
         private DefaultSettingsProvider settingsProvider;
