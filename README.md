@@ -1,47 +1,42 @@
-## Unity OOJU CAIG: AI-Powered Editor Toolkit (Scene Analysis, Interaction & Animation)
+# OOJU Interaction Unity Package
 
-An intuitive Unity Editor plugin that leverages AI for scene understanding and interaction suggestions, alongside powerful editor-based object animation tools to streamline your development workflow.
+## Overview
+This package provides a set of tools and editor extensions for easily adding interactive behaviors and AI-powered suggestions to your Unity projects. It includes:
+- Editor windows for scene analysis and interaction script generation
+- Animation utilities for common object behaviors (hover, wobble, etc.)
+- ScriptableObject-based settings and animation presets
+- Integration with OpenAI for scene description and interaction suggestions
 
-### ✨ Features
+## Installation
+1. Copy the `OOJUInteraction` folder into your project's `Assets` directory.
+2. Ensure all dependencies are installed (see below).
+3. Open Unity. The package will be available in the Editor menu under `OOJU`.
 
-OOJU CAIG provides a suite of powerful tools integrated directly into the Unity Editor to help you understand your scene's structure, brainstorm interactions, and bring your objects to life.
+## Main Features
+- **OOJU Interaction Window**: Go to `OOJU > Interaction` in the Unity Editor menu. Use this window to:
+  - Generate scene descriptions using OpenAI
+  - Get interaction suggestions for selected objects
+  - Generate and apply C# interaction scripts from natural language
+  - Apply common animations (hover, wobble, etc.) to objects
+- **Animation Presets**: Create and manage reusable animation parameter sets using `AnimationPreset` ScriptableObjects.
+- **Settings**: Store API keys and default animation parameters using the `OISettings` ScriptableObject.
 
-1.  **Scene Description & Analysis**
-    * Analyze your current Unity scene using OpenAI and generate a natural language summary of the main objects and their relationships.
-    * Quickly understand the overall structure, layout, and key elements of your scene.
+## How to Use
+1. **Scene Description & Suggestions**: Open the Interaction window, click `Generate Scene Description`, and follow the prompts.
+2. **Sentence-to-Interaction**: Enter a natural language description and generate a Unity C# script. The script will be saved and instructions shown in the window.
+3. **Apply Animations**: Select objects in the scene, choose an animation type and parameters, and click `Apply Animation`.
+4. **Animation Presets**: Create a new `AnimationPreset` asset via `Create > OOJU > Animation Preset` and assign it in the relevant UI.
 
-2.  **Interaction Suggestions**
-    * Get AI-powered suggestions for possible player interactions with selected objects in your scene.
-    * The plugin can distinguish between decorative/static objects and interactive ones, and recommends suitable actions for each.
+## Extending & Customizing
+- **Add New Animation Types**: Extend the `AnimationType` enum and implement the corresponding logic in `ObjectAutoAnimator` and `AnimationUI`.
+- **Custom Editor Styles**: Modify or extend `UIStyles.cs` for custom editor UI appearance.
+- **Settings**: Add new fields to `OISettings` and update the editor UI as needed.
 
-3.  **Object Auto-Animation**
-    * Easily apply various animations (Hover, Wobble, Spin, Shake, Bounce, etc.) to GameObjects with just a few clicks in the Editor.
-    * Adjust animation parameters such as speed and intensity directly from the UI.
+## Dependencies
+- **Newtonsoft.Json**: Required for OpenAI API integration. Install via Unity Package Manager (`com.unity.nuget.newtonsoft-json`) or from [GitHub](https://github.com/JamesNK/Newtonsoft.Json).
+- **UnityEditor**: All editor scripts require Unity Editor.
+- **UnityEngine**: Core Unity engine.
 
-4.  **Relational Animations**
-    * Apply animations based on relationships between objects, such as Orbit, LookAt, Follow, MoveAlongPath, and SnapToObject.
-    * Assign reference objects to create complex, relationship-based animations directly in the Editor.
-
-5.  **Editor-Only, Non-Intrusive**
-    * All features are provided through a dedicated Editor window, ensuring no unnecessary code is included in your runtime builds.
-    * Runtime components (like ObjectAutoAnimator) are only included if you choose to use them.
-
-6.  **Optional AI Integration**
-    * Enter your OpenAI API Key to enable scene description and interaction suggestion features.
-    * All animation features work without an API key.
-
-7.  **User-Friendly UI/UX**
-    * Intuitive tabbed interface for scene analysis, interaction suggestions, animation management, and settings—all in one place.
-
-
-### 🔧 Usage
-
-The OOJU CAIG window is organized into several tabs:
-
-* **Analysis:** Analyze the current scene and generate an AI-powered description.
-* **Interaction:** Get AI suggestions for interactions with selected objects.
-* **Animation:** Set up and manage Object Auto-Animations and Relational Animations.
-* **Settings:** Enter your OpenAI API Key and adjust plugin settings.
-
-Explore each tab to utilize the features for your scene development and object animation needs.
+## Support & Contact
+For questions, bug reports, or feature requests, please contact the OOJU team or open an issue on the repository where this package is hosted.
 
