@@ -14,6 +14,33 @@ public class ObjectAutoAnimatorPopup : EditorWindow
     // AnimationPreset ScriptableObject reference
     public AnimationPreset preset;
 
+    private float hoverSpeed = 1f;
+    private float hoverDistance = 0.1f;
+    private float wobbleSpeed = 2f;
+    private float wobbleAngle = 5f;
+    private float scaleAmount = 1f;
+
+    private void OnEnable()
+    {
+        // Load defaults from preset or AnimationSettings
+        if (preset != null)
+        {
+            hoverSpeed = preset.hoverSpeed;
+            hoverDistance = preset.baseHoverDistance;
+            wobbleSpeed = preset.wobbleSpeed;
+            wobbleAngle = preset.baseWobbleAngle;
+            // scaleAmount can be added to preset if needed
+        }
+        else
+        {
+            hoverSpeed = AnimationSettings.Instance.hoverSpeed;
+            hoverDistance = AnimationSettings.Instance.hoverDistance;
+            wobbleSpeed = AnimationSettings.Instance.wobbleSpeed;
+            wobbleAngle = AnimationSettings.Instance.wobbleAngle;
+            // scaleAmount = 1f;
+        }
+    }
+
     public static void ShowWindow(GameObject obj)
     {
         var window = ScriptableObject.CreateInstance<ObjectAutoAnimatorPopup>();
@@ -36,17 +63,19 @@ public class ObjectAutoAnimatorPopup : EditorWindow
         animationType = (AnimationType)EditorGUILayout.EnumPopup("Animation Type", animationType);
         EditorGUILayout.Space();
 
-        // Input parameters for each type
+        // Parameter input for each type
         switch (animationType)
         {
             case AnimationType.Hover:
-                // Add hover parameters if needed
+                hoverSpeed = EditorGUILayout.FloatField("Hover Speed", hoverSpeed);
+                hoverDistance = EditorGUILayout.FloatField("Hover Distance", hoverDistance);
                 break;
             case AnimationType.Wobble:
-                // Add wobble parameters if needed
+                wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", wobbleSpeed);
+                wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", wobbleAngle);
                 break;
             case AnimationType.Scale:
-                // Add scale parameters if needed
+                scaleAmount = EditorGUILayout.FloatField("Scale Amount", scaleAmount);
                 break;
         }
 
@@ -75,6 +104,20 @@ public class ObjectAutoAnimatorPopup : EditorWindow
         Undo.RecordObject(animator, "Set ObjectAutoAnimator Properties");
         animator.SetAnimationType(animationType);
         // Set parameters for each type
+        switch (animationType)
+        {
+            case AnimationType.Hover:
+                AnimationSettings.Instance.hoverSpeed = hoverSpeed;
+                AnimationSettings.Instance.hoverDistance = hoverDistance;
+                break;
+            case AnimationType.Wobble:
+                AnimationSettings.Instance.wobbleSpeed = wobbleSpeed;
+                AnimationSettings.Instance.wobbleAngle = wobbleAngle;
+                break;
+            case AnimationType.Scale:
+                // If you add scaleAmount to AnimationSettings, set it here
+                break;
+        }
         EditorUtility.SetDirty(animator);
     }
 }

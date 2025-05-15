@@ -1,0 +1,337 @@
+using UnityEngine;
+using UnityEditor;
+using System.Collections.Generic;
+
+namespace OojuInteractionPlugin
+{
+    public class AnimationUI
+    {
+        private AnimationSettings settings;
+        private AnimationType selectedAnimationType = AnimationType.None;
+        private AnimationCategory selectedCategory = AnimationCategory.Independent;
+        private RelationalAnimationType selectedRelationalType = RelationalAnimationType.Orbit;
+        private GameObject referenceObject = null;
+        private List<GameObject> pathPoints = new List<GameObject>();
+
+        // ViewModel for animation parameters (for future testability)
+        private class AnimationViewModel
+        {
+            public AnimationType SelectedAnimationType;
+            public AnimationCategory SelectedCategory;
+            public RelationalAnimationType SelectedRelationalType;
+            public GameObject ReferenceObject;
+            public List<GameObject> PathPoints = new List<GameObject>();
+        }
+        private AnimationViewModel viewModel = new AnimationViewModel();
+
+        public AnimationUI()
+        {
+            settings = AnimationSettings.Instance;
+        }
+
+        public void DrawAnimationUI()
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
+            GUILayout.Space(10);
+            EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
+            GUILayout.Space(10);
+
+            EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
+            viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" });
+            GUILayout.Space(10);
+
+            if (viewModel.SelectedCategory == AnimationCategory.Independent)
+            {
+                DrawIndependentAnimationUI();
+            }
+            else
+            {
+                DrawRelationalAnimationUI();
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawIndependentAnimationUI()
+        {
+            EditorGUILayout.HelpBox("Independent animations are applied to each object individually (e.g., Hover, Wobble, Spin, Shake, Bounce).", MessageType.Info);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label("Animation Type:", GUILayout.Width(100));
+            viewModel.SelectedAnimationType = (AnimationType)EditorGUILayout.EnumPopup(viewModel.SelectedAnimationType);
+            EditorGUILayout.EndHorizontal();
+
+            if (viewModel.SelectedAnimationType != AnimationType.None)
+            {
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Animation Parameters", EditorStyles.boldLabel);
+                EditorGUI.indentLevel++;
+                DrawIndependentAnimationParameters(viewModel.SelectedAnimationType);
+                EditorGUI.indentLevel--;
+                GUILayout.Space(10);
+
+                DrawApplyAnimationButton();
+            }
+        }
+
+        private void DrawIndependentAnimationParameters(AnimationType type)
+        {
+            switch (type)
+            {
+                case AnimationType.Hover:
+                    DrawHoverParameters();
+                    break;
+                case AnimationType.Wobble:
+                    DrawWobbleParameters();
+                    break;
+                case AnimationType.Scale:
+                    DrawScaleParameters();
+                    break;
+            }
+        }
+        private void DrawHoverParameters()
+        {
+            settings.hoverSpeed = EditorGUILayout.FloatField("Hover Speed", settings.hoverSpeed);
+            settings.hoverDistance = EditorGUILayout.FloatField("Hover Distance", settings.hoverDistance);
+        }
+        private void DrawWobbleParameters()
+        {
+            settings.wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", settings.wobbleSpeed);
+            settings.wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", settings.wobbleAngle);
+        }
+        private void DrawScaleParameters()
+        {
+            // Add scale parameters here if needed
+        }
+
+        private void DrawApplyAnimationButton()
+        {
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Apply Animation", GUILayout.Width(150), GUILayout.Height(30)))
+            {
+                var selectedObjects = Selection.gameObjects;
+                if (selectedObjects.Length == 0)
+                {
+                    EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    return;
+                }
+                ApplyAnimation(selectedObjects);
+            }
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawRelationalAnimationUI()
+        {
+            EditorGUILayout.HelpBox("Relational animations involve a relationship with another object (e.g., orbiting around a reference object and returning).", MessageType.Info);
+            EditorGUILayout.LabelField("Relational Animation Type", EditorStyles.boldLabel);
+            viewModel.SelectedRelationalType = (RelationalAnimationType)EditorGUILayout.EnumPopup(viewModel.SelectedRelationalType);
+            DrawRelationalAnimationParameters(viewModel.SelectedRelationalType);
+            DrawApplyRelationalAnimationButton();
+        }
+
+        private void DrawRelationalAnimationParameters(RelationalAnimationType type)
+        {
+            switch (type)
+            {
+                case RelationalAnimationType.Orbit:
+                    DrawOrbitParameters();
+                    break;
+                case RelationalAnimationType.LookAt:
+                    DrawLookAtParameters();
+                    break;
+                case RelationalAnimationType.Follow:
+                    DrawFollowParameters();
+                    break;
+                case RelationalAnimationType.MoveAlongPath:
+                    DrawMoveAlongPathParameters();
+                    break;
+                case RelationalAnimationType.SnapToObject:
+                    DrawSnapToObjectParameters();
+                    break;
+            }
+        }
+        private void DrawOrbitParameters()
+        {
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            settings.orbitRadius = EditorGUILayout.FloatField("Orbit Radius", settings.orbitRadius);
+            settings.orbitSpeed = EditorGUILayout.FloatField("Orbit Speed", settings.orbitSpeed);
+            settings.orbitDuration = EditorGUILayout.FloatField("Duration", settings.orbitDuration);
+        }
+        private void DrawLookAtParameters()
+        {
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            settings.lookAtSpeed = EditorGUILayout.FloatField("Look Speed", settings.lookAtSpeed);
+            settings.lookAtDuration = EditorGUILayout.FloatField("Duration", settings.lookAtDuration);
+        }
+        private void DrawFollowParameters()
+        {
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            settings.followSpeed = EditorGUILayout.FloatField("Follow Speed", settings.followSpeed);
+            settings.followStopDistance = EditorGUILayout.FloatField("Stop Distance", settings.followStopDistance);
+            settings.followDuration = EditorGUILayout.FloatField("Duration", settings.followDuration);
+        }
+        private void DrawMoveAlongPathParameters()
+        {
+            DrawPathPointsUI();
+            settings.pathMoveSpeed = EditorGUILayout.FloatField("Move Speed", settings.pathMoveSpeed);
+        }
+        private void DrawSnapToObjectParameters()
+        {
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            settings.snapRotation = EditorGUILayout.Toggle("Snap Rotation", settings.snapRotation);
+        }
+
+        private void DrawPathPointsUI()
+        {
+            EditorGUILayout.LabelField("Path Points (Add GameObjects):");
+            int removeIdx = -1;
+            for (int i = 0; i < viewModel.PathPoints.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+                viewModel.PathPoints[i] = (GameObject)EditorGUILayout.ObjectField(viewModel.PathPoints[i], typeof(GameObject), true);
+                if (GUILayout.Button("Remove", GUILayout.Width(60)))
+                    removeIdx = i;
+                EditorGUILayout.EndHorizontal();
+            }
+            if (removeIdx >= 0) viewModel.PathPoints.RemoveAt(removeIdx);
+            if (GUILayout.Button("Add Path Point")) viewModel.PathPoints.Add(null);
+        }
+
+        private void DrawApplyRelationalAnimationButton()
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("This animation makes the selected object move around the reference object and return to its original position.", EditorStyles.wordWrappedLabel);
+            GUILayout.Space(10);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Apply Relational Animation", GUILayout.Width(180), GUILayout.Height(30)))
+            {
+                var selectedObjects = Selection.gameObjects;
+                if (selectedObjects.Length == 0)
+                {
+                    EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    return;
+                }
+                if (viewModel.ReferenceObject == null && viewModel.SelectedRelationalType != RelationalAnimationType.MoveAlongPath)
+                {
+                    EditorUtility.DisplayDialog("Error", "Please assign a reference object.", "OK");
+                    return;
+                }
+                if (viewModel.SelectedRelationalType == RelationalAnimationType.MoveAlongPath && (viewModel.PathPoints == null || viewModel.PathPoints.Count < 2))
+                {
+                    EditorUtility.DisplayDialog("Error", "Please add at least two path points.", "OK");
+                    return;
+                }
+                ApplyRelationalAnimation(selectedObjects);
+            }
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void ApplyAnimation(GameObject[] selectedObjects)
+        {
+            foreach (var obj in selectedObjects)
+            {
+                AddColliderIfNeeded(obj);
+                ApplyAnimationToObject(obj);
+            }
+        }
+
+        private void AddColliderIfNeeded(GameObject obj)
+        {
+            var collider = obj.GetComponent<Collider>();
+            if (collider == null)
+            {
+                var meshFilter = obj.GetComponent<MeshFilter>();
+                if (meshFilter != null && meshFilter.sharedMesh != null)
+                {
+                    var meshCollider = obj.AddComponent<MeshCollider>();
+                    meshCollider.sharedMesh = meshFilter.sharedMesh;
+                    meshCollider.convex = false;
+                }
+                else
+                {
+                    obj.AddComponent<BoxCollider>();
+                }
+            }
+        }
+
+        private void ApplyAnimationToObject(GameObject obj)
+        {
+            var existingAnimator = obj.GetComponent<ObjectAutoAnimator>();
+            if (existingAnimator != null)
+            {
+                Undo.DestroyObjectImmediate(existingAnimator);
+            }
+
+            var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
+            Undo.RecordObject(animator, "Set Animation");
+
+            animator.SetAnimationType(viewModel.SelectedAnimationType);
+
+            EditorUtility.SetDirty(animator);
+            if (Application.isPlaying)
+            {
+                animator.StartAnimation();
+            }
+        }
+
+        private void ApplyRelationalAnimation(GameObject[] selectedObjects)
+        {
+            foreach (var obj in selectedObjects)
+            {
+                var existingAnimator = obj.GetComponent<ObjectAutoAnimator>();
+                if (existingAnimator != null)
+                {
+                    Undo.DestroyObjectImmediate(existingAnimator);
+                }
+
+                var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
+                Undo.RecordObject(animator, "Set Relational Animation");
+
+                ApplyRelationalAnimationToObject(animator);
+            }
+        }
+
+        private void ApplyRelationalAnimationToObject(ObjectAutoAnimator animator)
+        {
+            switch (viewModel.SelectedRelationalType)
+            {
+                case RelationalAnimationType.Orbit:
+                    if (viewModel.ReferenceObject != null)
+                    {
+                        animator.StartOrbit(viewModel.ReferenceObject.transform, settings.orbitRadius, settings.orbitSpeed, settings.orbitDuration);
+                    }
+                    break;
+                case RelationalAnimationType.LookAt:
+                    if (viewModel.ReferenceObject != null)
+                    {
+                        animator.StartLookAt(viewModel.ReferenceObject.transform, settings.lookAtSpeed, settings.lookAtDuration);
+                    }
+                    break;
+                case RelationalAnimationType.Follow:
+                    if (viewModel.ReferenceObject != null)
+                    {
+                        animator.StartFollow(viewModel.ReferenceObject.transform, settings.followSpeed, settings.followStopDistance, settings.followDuration);
+                    }
+                    break;
+                case RelationalAnimationType.MoveAlongPath:
+                    var path = viewModel.PathPoints.FindAll(p => p != null).ConvertAll(p => p.transform);
+                    if (path.Count > 0)
+                    {
+                        animator.StartMoveAlongPath(path, settings.pathMoveSpeed, settings.orbitDuration);
+                    }
+                    break;
+                case RelationalAnimationType.SnapToObject:
+                    if (viewModel.ReferenceObject != null)
+                    {
+                        animator.SnapToObject(viewModel.ReferenceObject.transform, settings.snapRotation);
+                    }
+                    break;
+            }
+        }
+    }
+} 

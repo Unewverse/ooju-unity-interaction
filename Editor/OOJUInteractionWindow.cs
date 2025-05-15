@@ -22,41 +22,11 @@ namespace OojuInteractionPlugin
         private string caigApiKeyTemp = null;
         private bool caigApiKeyShow = false;
 
-        // Animation state variables
-        private AnimationType selectedAnimationType = AnimationType.None;
-        private float hoverSpeed = 1f;
-        private float hoverDistance = 0.1f;
-        private float wobbleSpeed = 2f;
-        private float wobbleAngle = 5f;
-        private float spinSpeed = 90f;
-        private float shakeDuration = 0.5f;
-        private float shakeMagnitude = 0.1f;
-        private float bounceSpeed = 1f;
-        private float bounceHeight = 0.5f;
-        private float squashRatio = 0.1f;
-
-        private enum AnimationCategory { Independent, Relational }
-        private AnimationCategory selectedCategory = AnimationCategory.Independent;
-        private GameObject referenceObject = null;
-
-        private enum RelationalAnimationType { Orbit, LookAt, Follow, MoveAlongPath, SnapToObject }
-        private RelationalAnimationType selectedRelationalType = RelationalAnimationType.Orbit;
-        private float orbitRadius = 2f;
-        private float orbitSpeed = 1f;
-        private float orbitDuration = 3f;
-        private float lookAtSpeed = 5f;
-        private float lookAtDuration = 2f;
-        private float followSpeed = 2f;
-        private float followStopDistance = 0.2f;
-        private float followDuration = 3f;
-        private List<GameObject> pathPoints = new List<GameObject>();
-        private float pathMoveSpeed = 2f;
-        private bool snapRotation = true;
-
         private enum InteractionTab { Tools, Settings }
         private InteractionTab currentInteractionTab = InteractionTab.Tools;
 
         private UIStyles styles;
+        private AnimationUI animationUI;
 
         private string userInteractionInput = "";
 
@@ -81,6 +51,7 @@ namespace OojuInteractionPlugin
         private void OnEnable()
         {
             styles = new UIStyles();
+            animationUI = new AnimationUI();
             caigApiKey = OISettings.Instance.ApiKey;
             caigApiKeyTemp = caigApiKey;
             // Set minimum window size
@@ -114,14 +85,29 @@ namespace OojuInteractionPlugin
             }
         }
 
-        // Interaction Tools tab UI (minimal skeleton)
+        // Draws the main interaction tools tab UI
         private void DrawInteractionToolsTab(float contentWidth, float buttonWidth)
         {
             mainScrollPosition = EditorGUILayout.BeginScrollView(mainScrollPosition, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Space(20);
+            DrawDescriptionSection(buttonWidth);
+            GUILayout.Space(20);
+            DrawSentenceToInteractionSection(buttonWidth);
+            GUILayout.Space(20);
+            DrawAnimationSection();
+            if (isGeneratingDescription)
+            {
+                GUILayout.Space(10);
+                EditorGUILayout.HelpBox("Generating... Please wait.", MessageType.Info);
+            }
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.EndScrollView();
+        }
 
-            // Description & Analysis section
+        // Draws the scene description and analysis section
+        private void DrawDescriptionSection(float buttonWidth)
+        {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             EditorGUILayout.LabelField("Scene Description & Analysis", EditorStyles.boldLabel);
@@ -133,7 +119,15 @@ namespace OojuInteractionPlugin
             EditorGUI.BeginDisabledGroup(isGeneratingDescription);
             if (GUILayout.Button(new GUIContent("Generate Scene Description", "Analyze and describe the current scene"), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
             {
-                GenerateDescriptionInternal();
+                try
+                {
+                    GenerateDescriptionInternal();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error in GenerateDescriptionInternal: {ex.Message}");
+                    EditorUtility.DisplayDialog("Error", $"Error in GenerateDescriptionInternal: {ex.Message}", "OK");
+                }
             }
             EditorGUI.EndDisabledGroup();
             GUILayout.FlexibleSpace();
@@ -148,17 +142,17 @@ namespace OojuInteractionPlugin
             }
             GUILayout.Space(10);
             EditorGUILayout.EndVertical();
+        }
 
-            GUILayout.Space(20);
-
-            // Sentence-to-Interaction section
+        // Draws the sentence-to-interaction section
+        private void DrawSentenceToInteractionSection(float buttonWidth)
+        {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             EditorGUILayout.LabelField("Sentence-to-Interaction", EditorStyles.boldLabel);
             GUILayout.Space(5);
             EditorGUILayout.LabelField("Describe the interaction you want to create as a single sentence", EditorStyles.miniLabel);
             GUILayout.Space(10);
-            // Text input area
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, GUILayout.Height(60), GUILayout.ExpandWidth(true));
             EditorGUILayout.EndVertical();
@@ -167,7 +161,15 @@ namespace OojuInteractionPlugin
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Generate Interaction", GUILayout.Width(buttonWidth), GUILayout.Height(30)))
             {
-                GenerateSentenceToInteraction();
+                try
+                {
+                    GenerateSentenceToInteraction();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error in GenerateSentenceToInteraction: {ex.Message}");
+                    EditorUtility.DisplayDialog("Error", $"Error in GenerateSentenceToInteraction: {ex.Message}", "OK");
+                }
             }
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
@@ -175,7 +177,6 @@ namespace OojuInteractionPlugin
             if (!string.IsNullOrEmpty(sentenceToInteractionResult))
             {
                 GUILayout.Space(10);
-                // Always show How to Apply instructions (fixed English text)
                 EditorGUILayout.LabelField("How to Apply:", EditorStyles.boldLabel);
                 lastScriptSummaryScroll = EditorGUILayout.BeginScrollView(lastScriptSummaryScroll, GUILayout.Height(100), GUILayout.ExpandWidth(true));
                 EditorGUILayout.TextArea(
@@ -204,393 +205,41 @@ namespace OojuInteractionPlugin
                 }
             }
             EditorGUILayout.EndVertical();
-
-            GUILayout.Space(20);
-
-            // Interaction Suggestions section
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Interaction Suggestions", EditorStyles.boldLabel);
-            GUILayout.Space(5);
-            EditorGUILayout.LabelField("Get suggestions for selected objects", EditorStyles.miniLabel);
-            GUILayout.Space(10);
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            EditorGUI.BeginDisabledGroup(isGeneratingDescription);
-            if (GUILayout.Button(new GUIContent("Generate Suggestions", "Get interaction suggestions for selected objects"), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
-            {
-                GenerateSuggestionsInternal();
-            }
-            EditorGUI.EndDisabledGroup();
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
-            if (interactionSuggestions != null && interactionSuggestions.Count > 0)
-            {
-                GUILayout.Space(10);
-                foreach (var kvp in interactionSuggestions)
-                {
-                    EditorGUILayout.LabelField($"Object: {kvp.Key}", EditorStyles.boldLabel);
-                    EditorGUI.indentLevel++;
-                    if (kvp.Value != null)
-                    {
-                        foreach (var suggestion in kvp.Value)
-                        {
-                            EditorGUILayout.LabelField($"• {suggestion}", EditorStyles.wordWrappedLabel);
-                        }
-                    }
-                    EditorGUI.indentLevel--;
-                    GUILayout.Space(5);
-                }
-            }
-            GUILayout.Space(10);
-            EditorGUILayout.EndVertical();
-
-            GUILayout.Space(20);
-
-            // Animation section
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
-            GUILayout.Space(5);
-            EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
-            selectedCategory = (AnimationCategory)GUILayout.Toolbar((int)selectedCategory, new string[] { "Independent", "Relational" });
-            GUILayout.Space(10);
-            if (selectedCategory == AnimationCategory.Independent)
-            {
-                EditorGUILayout.HelpBox("Independent animations are applied to each object individually (e.g., Hover, Wobble, Spin, Shake, Bounce).", MessageType.Info);
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.Label("Animation Type:", GUILayout.Width(100));
-                selectedAnimationType = (AnimationType)EditorGUILayout.EnumPopup(selectedAnimationType);
-                EditorGUILayout.EndHorizontal();
-                if (selectedAnimationType != AnimationType.None)
-                {
-                    EditorGUILayout.Space();
-                    EditorGUILayout.LabelField("Animation Parameters", EditorStyles.boldLabel);
-                    EditorGUI.indentLevel++;
-                    switch (selectedAnimationType)
-                    {
-                        case AnimationType.Hover:
-                            hoverSpeed = EditorGUILayout.FloatField("Hover Speed", hoverSpeed);
-                            hoverDistance = EditorGUILayout.FloatField("Hover Distance", hoverDistance);
-                            break;
-                        case AnimationType.Wobble:
-                            wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", wobbleSpeed);
-                            wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", wobbleAngle);
-                            break;
-                        case AnimationType.Scale:
-                            // Scale parameters
-                            break;
-                    }
-                    EditorGUI.indentLevel--;
-                    GUILayout.Space(10);
-                    EditorGUILayout.BeginHorizontal();
-                    GUILayout.FlexibleSpace();
-                    if (GUILayout.Button("Apply Animation", GUILayout.Width(150), GUILayout.Height(30)))
-                    {
-                        var selectedObjects = Selection.gameObjects;
-                        if (selectedObjects.Length == 0)
-                        {
-                            EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
-                        }
-                        else
-                        {
-                            foreach (var obj in selectedObjects)
-                            {
-                                // Collider auto add
-                                var collider = obj.GetComponent<Collider>();
-                                if (collider == null)
-                                {
-                                    var meshFilter = obj.GetComponent<MeshFilter>();
-                                    if (meshFilter != null && meshFilter.sharedMesh != null)
-                                    {
-                                        var meshCollider = obj.AddComponent<MeshCollider>();
-                                        meshCollider.sharedMesh = meshFilter.sharedMesh;
-                                        meshCollider.convex = false;
-                                    }
-                                    else
-                                    {
-                                        obj.AddComponent<BoxCollider>();
-                                    }
-                                }
-                                // Check for existing ObjectAutoAnimator
-                                var existingAnimator = obj.GetComponent<ObjectAutoAnimator>();
-                                if (existingAnimator != null)
-                                {
-                                    // Remove existing animator
-                                    Undo.DestroyObjectImmediate(existingAnimator);
-                                }
-
-                                // Add new animator
-                                var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
-                                Undo.RecordObject(animator, "Set Animation");
-
-                                switch (selectedAnimationType)
-                                {
-                                    case AnimationType.Hover:
-                                        animator.SetAnimationType(selectedAnimationType);
-                                        animator.hoverSpeed = hoverSpeed;
-                                        animator.baseHoverDistance = hoverDistance;
-                                        break;
-                                    case AnimationType.Wobble:
-                                        animator.SetAnimationType(selectedAnimationType);
-                                        animator.wobbleSpeed = wobbleSpeed;
-                                        animator.baseWobbleAngle = wobbleAngle;
-                                        break;
-                                    case AnimationType.Scale:
-                                        animator.SetAnimationType(selectedAnimationType);
-                                        break;
-                                }
-
-                                EditorUtility.SetDirty(animator);
-                                if (Application.isPlaying)
-                                {
-                                    animator.StartAnimation();
-                                }
-                            }
-                        }
-                    }
-                    GUILayout.FlexibleSpace();
-                    EditorGUILayout.EndHorizontal();
-                }
-            }
-            else if (selectedCategory == AnimationCategory.Relational)
-            {
-                EditorGUILayout.HelpBox("Relational animations involve a relationship with another object (e.g., orbiting around a reference object and returning).", MessageType.Info);
-                EditorGUILayout.LabelField("Relational Animation Type", EditorStyles.boldLabel);
-                selectedRelationalType = (RelationalAnimationType)EditorGUILayout.EnumPopup(selectedRelationalType);
-                switch (selectedRelationalType)
-                {
-                    case RelationalAnimationType.Orbit:
-                        referenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", referenceObject, typeof(GameObject), true);
-                        orbitRadius = EditorGUILayout.FloatField("Orbit Radius", orbitRadius);
-                        orbitSpeed = EditorGUILayout.FloatField("Orbit Speed", orbitSpeed);
-                        orbitDuration = EditorGUILayout.FloatField("Duration", orbitDuration);
-                        break;
-                    case RelationalAnimationType.LookAt:
-                        referenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", referenceObject, typeof(GameObject), true);
-                        lookAtSpeed = EditorGUILayout.FloatField("Look Speed", lookAtSpeed);
-                        lookAtDuration = EditorGUILayout.FloatField("Duration", lookAtDuration);
-                        break;
-                    case RelationalAnimationType.Follow:
-                        referenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", referenceObject, typeof(GameObject), true);
-                        followSpeed = EditorGUILayout.FloatField("Follow Speed", followSpeed);
-                        followStopDistance = EditorGUILayout.FloatField("Stop Distance", followStopDistance);
-                        followDuration = EditorGUILayout.FloatField("Duration", followDuration);
-                        break;
-                    case RelationalAnimationType.MoveAlongPath:
-                        EditorGUILayout.LabelField("Path Points (Add GameObjects):");
-                        int removeIdx = -1;
-                        for (int i = 0; i < pathPoints.Count; i++)
-                        {
-                            EditorGUILayout.BeginHorizontal();
-                            pathPoints[i] = (GameObject)EditorGUILayout.ObjectField(pathPoints[i], typeof(GameObject), true);
-                            if (GUILayout.Button("Remove", GUILayout.Width(60)))
-                                removeIdx = i;
-                            EditorGUILayout.EndHorizontal();
-                        }
-                        if (removeIdx >= 0) pathPoints.RemoveAt(removeIdx);
-                        if (GUILayout.Button("Add Path Point")) pathPoints.Add(null);
-                        pathMoveSpeed = EditorGUILayout.FloatField("Move Speed", pathMoveSpeed);
-                        break;
-                    case RelationalAnimationType.SnapToObject:
-                        referenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", referenceObject, typeof(GameObject), true);
-                        snapRotation = EditorGUILayout.Toggle("Snap Rotation", snapRotation);
-                        break;
-                }
-                EditorGUILayout.Space();
-                EditorGUILayout.LabelField("This animation makes the selected object move around the reference object and return to its original position.", EditorStyles.wordWrappedLabel);
-                GUILayout.Space(10);
-                EditorGUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Apply Relational Animation", GUILayout.Width(180), GUILayout.Height(30)))
-                {
-                    var selectedObjects = Selection.gameObjects;
-                    if (selectedObjects.Length == 0)
-                    {
-                        EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
-                    }
-                    else
-                    {
-                        foreach (var obj in selectedObjects)
-                        {
-                            // Check for existing ObjectAutoAnimator
-                            var existingAnimator = obj.GetComponent<ObjectAutoAnimator>();
-                            if (existingAnimator != null)
-                            {
-                                // Remove existing animator
-                                Undo.DestroyObjectImmediate(existingAnimator);
-                            }
-
-                            // Add new animator
-                            var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
-                            Undo.RecordObject(animator, "Set Relational Animation");
-
-                            switch (selectedRelationalType)
-                            {
-                                case RelationalAnimationType.Orbit:
-                                    if (referenceObject != null)
-                                    {
-                                        animator.relationalType = RelationalType.Orbit;
-                                        animator.relationalReferenceObject = referenceObject.transform;
-                                        animator.orbitRadius = orbitRadius;
-                                        animator.orbitSpeed = orbitSpeed;
-                                        animator.orbitDuration = orbitDuration;
-                                        EditorUtility.SetDirty(animator);
-                                        if (Application.isPlaying)
-                                            animator.StartOrbit(referenceObject.transform, orbitRadius, orbitSpeed, orbitDuration);
-                                    }
-                                    break;
-                                case RelationalAnimationType.LookAt:
-                                    if (referenceObject != null)
-                                    {
-                                        animator.relationalType = RelationalType.LookAt;
-                                        animator.relationalReferenceObject = referenceObject.transform;
-                                        animator.lookAtSpeed = lookAtSpeed;
-                                        animator.lookAtDuration = lookAtDuration;
-                                        EditorUtility.SetDirty(animator);
-                                        if (Application.isPlaying)
-                                            animator.StartLookAt(referenceObject.transform, lookAtSpeed, lookAtDuration);
-                                    }
-                                    break;
-                                case RelationalAnimationType.Follow:
-                                    if (referenceObject != null)
-                                    {
-                                        animator.relationalType = RelationalType.Follow;
-                                        animator.relationalReferenceObject = referenceObject.transform;
-                                        animator.followSpeed = followSpeed;
-                                        animator.followStopDistance = followStopDistance;
-                                        animator.followDuration = followDuration;
-                                        EditorUtility.SetDirty(animator);
-                                        if (Application.isPlaying)
-                                            animator.StartFollow(referenceObject.transform, followSpeed, followStopDistance, followDuration);
-                                    }
-                                    break;
-                                case RelationalAnimationType.MoveAlongPath:
-                                    var path = pathPoints.FindAll(p => p != null).ConvertAll(p => p.transform);
-                                    if (path.Count > 0)
-                                    {
-                                        animator.relationalType = RelationalType.MoveAlongPath;
-                                        animator.pathPoints = path;
-                                        animator.pathMoveSpeed = pathMoveSpeed;
-                                        animator.pathMoveDuration = orbitDuration;
-                                        EditorUtility.SetDirty(animator);
-                                        if (Application.isPlaying)
-                                            animator.StartMoveAlongPath(path, pathMoveSpeed, orbitDuration);
-                                    }
-                                    break;
-                                case RelationalAnimationType.SnapToObject:
-                                    if (referenceObject != null)
-                                    {
-                                        animator.relationalType = RelationalType.SnapToObject;
-                                        animator.relationalReferenceObject = referenceObject.transform;
-                                        animator.snapRotation = snapRotation;
-                                        EditorUtility.SetDirty(animator);
-                                        if (Application.isPlaying)
-                                            animator.SnapToObject(referenceObject.transform, snapRotation);
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-                }
-                GUILayout.FlexibleSpace();
-                EditorGUILayout.EndHorizontal();
-            }
-            GUILayout.Space(15);
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Clear Animation", GUILayout.Width(150), GUILayout.Height(30)))
-            {
-                var selectedObjects = Selection.gameObjects;
-                if (selectedObjects.Length == 0)
-                {
-                    EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
-                }
-                else
-                {
-                    int removedCount = 0;
-                    foreach (var obj in selectedObjects)
-                    {
-                        var animator = obj.GetComponent<ObjectAutoAnimator>();
-                        if (animator != null)
-                        {
-                            Undo.DestroyObjectImmediate(animator);
-                            removedCount++;
-                        }
-                    }
-                    if (removedCount > 0)
-                    {
-                        EditorUtility.DisplayDialog("Success", $"Removed animation from {removedCount} object(s).", "OK");
-                    }
-                    else
-                    {
-                        EditorUtility.DisplayDialog("Info", "No ObjectAutoAnimator components found on selected objects.", "OK");
-                    }
-                }
-            }
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
-            if (isGeneratingDescription)
-            {
-                GUILayout.Space(10);
-                EditorGUILayout.HelpBox("Generating... Please wait.", MessageType.Info);
-            }
-            EditorGUILayout.EndVertical();
-            EditorGUILayout.EndVertical();
-            EditorGUILayout.EndScrollView();
         }
 
-        // CAIG Settings internal tab UI (minimal skeleton)
-        private void DrawCAIGSettingsInnerTab()
+        // Draws the animation section
+        private void DrawAnimationSection()
         {
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("OpenAI API Settings", EditorStyles.boldLabel);
-            EditorGUILayout.Space();
-            EditorGUILayout.BeginHorizontal();
-            if (caigApiKeyShow)
-            {
-                caigApiKeyTemp = EditorGUILayout.TextField("API Key", caigApiKeyTemp);
-            }
-            else
-            {
-                caigApiKeyTemp = EditorGUILayout.PasswordField("API Key", caigApiKeyTemp);
-            }
-            if (GUILayout.Button(caigApiKeyShow ? "Hide" : "Show", EditorStyles.miniButton, GUILayout.Width(60)))
-            {
-                caigApiKeyShow = !caigApiKeyShow;
-            }
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.Space();
-            if (GUILayout.Button("Save API Key"))
-            {
-                caigApiKey = caigApiKeyTemp;
-                OISettings.Instance.ApiKey = caigApiKey;
-                EditorUtility.SetDirty(OISettings.Instance);
-                AssetDatabase.SaveAssets();
-                EditorUtility.DisplayDialog("Saved", "API Key has been saved.", "OK");
-            }
-        }
-
-        private async void GenerateDescriptionInternal()
-        {
-            isGeneratingDescription = true;
-            EditorUtility.DisplayProgressBar("Generating Scene Description", "Please wait while the scene is being analyzed...", 0.5f);
-            Repaint();
             try
             {
+                animationUI.DrawAnimationUI();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error in DrawAnimationSection: {ex.Message}");
+                EditorUtility.DisplayDialog("Error", $"Error in DrawAnimationSection: {ex.Message}", "OK");
+            }
+        }
+
+        // Optimized async method for generating scene description
+        private async void GenerateDescriptionInternal()
+        {
+            try
+            {
+                isGeneratingDescription = true;
+                EditorUtility.DisplayProgressBar("Generating Scene Description", "Please wait while the scene is being analyzed...", 0.5f);
                 if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
                 {
+                    EditorUtility.ClearProgressBar();
+                    isGeneratingDescription = false;
                     EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
                     return;
                 }
-
                 sceneDescription = await OIDescriptor.GenerateSceneDescription();
                 interactionSuggestions = null;
                 EditorUtility.DisplayDialog("Scene Description", "Scene description generated successfully.", "OK");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 Debug.LogError($"Error generating scene description: {ex.Message}");
                 EditorUtility.DisplayDialog("Error", $"Error generating scene description: {ex.Message}", "OK");
@@ -604,30 +253,28 @@ namespace OojuInteractionPlugin
             }
         }
 
+        // Optimized async method for generating suggestions
         private async void GenerateSuggestionsInternal()
         {
-            if (string.IsNullOrEmpty(sceneDescription))
-            {
-                EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
-                return;
-            }
-
-            var selectedObjects = Selection.gameObjects;
-            if (selectedObjects.Length == 0)
-            {
-                EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
-                return;
-            }
-
-            isGeneratingDescription = true;
-            EditorUtility.DisplayProgressBar("Generating Suggestions", "Please wait while suggestions are being generated...", 0.5f);
-            Repaint();
             try
             {
+                if (string.IsNullOrEmpty(sceneDescription))
+                {
+                    EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
+                    return;
+                }
+                var selectedObjects = Selection.gameObjects;
+                if (selectedObjects.Length == 0)
+                {
+                    EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    return;
+                }
+                isGeneratingDescription = true;
+                EditorUtility.DisplayProgressBar("Generating Suggestions", "Please wait while suggestions are being generated...", 0.5f);
                 interactionSuggestions = await OIDescriptor.GenerateInteractionSuggestions(sceneDescription, selectedObjects);
                 EditorUtility.DisplayDialog("Interaction Suggestions", "Suggestions generated successfully.", "OK");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 Debug.LogError($"Error generating interaction suggestions: {ex.Message}");
                 EditorUtility.DisplayDialog("Error", $"Error generating interaction suggestions: {ex.Message}", "OK");
@@ -641,39 +288,36 @@ namespace OojuInteractionPlugin
             }
         }
 
-        // Generates the interaction using OpenAI based on the user's sentence and scene description
+        // Optimized async method for generating sentence-to-interaction
         private async void GenerateSentenceToInteraction()
         {
-            if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
-            {
-                EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
-                return;
-            }
-            if (string.IsNullOrEmpty(sceneDescription))
-            {
-                EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
-                return;
-            }
-            if (string.IsNullOrEmpty(userInteractionInput))
-            {
-                EditorUtility.DisplayDialog("Error", "Please enter an interaction description.", "OK");
-                return;
-            }
-
-            isGeneratingDescription = true;
-            EditorUtility.DisplayProgressBar("Generating Interaction", "Please wait while the interaction is being generated...", 0.5f);
-            Repaint();
-
             try
             {
+                if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
+                {
+                    EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
+                    return;
+                }
+                if (string.IsNullOrEmpty(sceneDescription))
+                {
+                    EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
+                    return;
+                }
+                if (string.IsNullOrEmpty(userInteractionInput))
+                {
+                    EditorUtility.DisplayDialog("Error", "Please enter an interaction description.", "OK");
+                    return;
+                }
+                isGeneratingDescription = true;
+                EditorUtility.DisplayProgressBar("Generating Interaction", "Please wait while the interaction is being generated...", 0.5f);
                 string prompt = $"Scene Description:\n{sceneDescription}\n\nUser Request (Sentence):\n{userInteractionInput}\n\n" +
-                                "1. Explain how this can be implemented in Unity.\n" +
-                                "2. Identify the most suitable object(s) in the current scene for this interaction.\n" +
-                                "3. Provide the relevant Unity C# script code for this interaction.";
-
+                                "1. Generate a Unity C# script for this interaction.\n" +
+                                "2. The script must define only one class, and the class name must be unique (for example, append a timestamp or a random string).\n" +
+                                "3. Do not define the same class or method more than once.\n" +
+                                "4. If you need to implement Update, Start, or other Unity methods, each should appear only once in the class.\n" +
+                                "5. All comments in the script must be written in English.\n" +
+                                "6. Output only the code block.";
                 sentenceToInteractionResult = await OIDescriptor.RequestLLMInteraction(prompt);
-
-                // Extract code and save script
                 string code = ExtractCodeBlock(sentenceToInteractionResult);
                 if (!string.IsNullOrEmpty(code))
                 {
@@ -683,11 +327,8 @@ namespace OojuInteractionPlugin
                 {
                     lastGeneratedScriptPath = "No code block found.";
                 }
-
-                // Extract suggested object names from the result
                 lastSuggestedObjectNames = ExtractSuggestedObjectNames(sentenceToInteractionResult);
                 foundSuggestedObjects = FindObjectsInSceneByNames(lastSuggestedObjectNames);
-
                 EditorUtility.DisplayDialog("Sentence-to-Interaction", "Interaction generated successfully.\nScript saved to: " + lastGeneratedScriptPath, "OK");
             }
             catch (Exception ex)
@@ -781,6 +422,9 @@ namespace OojuInteractionPlugin
             // Replace the class name inside the script code as well
             scriptCode = ReplaceClassNameInScript(scriptCode, className);
 
+            // Remove duplicate class definitions and duplicate Unity methods (Update, Start, etc.)
+            scriptCode = RemoveDuplicateClassAndMethods(scriptCode, className);
+
             string filePath = Path.Combine(directory, $"{className}.cs");
             File.WriteAllText(filePath, scriptCode);
             AssetDatabase.Refresh();
@@ -796,6 +440,60 @@ namespace OojuInteractionPlugin
             return regex.Replace(scriptCode, $"class {newClassName}", 1);
         }
 
+        // Removes duplicate class definitions and duplicate Unity methods (Update, Start, etc.)
+        private string RemoveDuplicateClassAndMethods(string scriptCode, string className)
+        {
+            // Remove duplicate class definitions
+            var lines = scriptCode.Split(new[] { '\n' });
+            var newLines = new List<string>();
+            var methodSet = new HashSet<string>();
+            bool insideClass = false;
+            bool insideMethod = false;
+            string currentMethod = null;
+            foreach (var line in lines)
+            {
+                string trimmed = line.Trim();
+                // Only keep the first class definition
+                if (trimmed.StartsWith($"class {className}"))
+                {
+                    if (insideClass)
+                        continue;
+                    insideClass = true;
+                }
+                // Detect method signature
+                if (insideClass && (trimmed.StartsWith("void ") || trimmed.StartsWith("public void ") || trimmed.StartsWith("private void ")))
+                {
+                    int paren = trimmed.IndexOf('(');
+                    if (paren > 0)
+                    {
+                        string methodSig = trimmed.Substring(0, paren).Trim();
+                        if (methodSet.Contains(methodSig))
+                        {
+                            insideMethod = true;
+                            currentMethod = methodSig;
+                            continue;
+                        }
+                        else
+                        {
+                            methodSet.Add(methodSig);
+                        }
+                    }
+                }
+                // Skip lines inside duplicate method
+                if (insideMethod)
+                {
+                    if (trimmed == "}")
+                    {
+                        insideMethod = false;
+                        currentMethod = null;
+                    }
+                    continue;
+                }
+                newLines.Add(line);
+            }
+            return string.Join("\n", newLines);
+        }
+
         // Generates a valid C# class/file name from the interaction sentence
         private string GenerateClassNameFromSentence(string sentence)
         {
@@ -808,6 +506,37 @@ namespace OojuInteractionPlugin
             // Ensure it starts with a letter
             if (!char.IsLetter(name[0])) name = "Script_" + name;
             return name;
+        }
+
+        // CAIG Settings internal tab UI (minimal skeleton)
+        private void DrawCAIGSettingsInnerTab()
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("OpenAI API Settings", EditorStyles.boldLabel);
+            EditorGUILayout.Space();
+            EditorGUILayout.BeginHorizontal();
+            if (caigApiKeyShow)
+            {
+                caigApiKeyTemp = EditorGUILayout.TextField("API Key", caigApiKeyTemp);
+            }
+            else
+            {
+                caigApiKeyTemp = EditorGUILayout.PasswordField("API Key", caigApiKeyTemp);
+            }
+            if (GUILayout.Button(caigApiKeyShow ? "Hide" : "Show", EditorStyles.miniButton, GUILayout.Width(60)))
+            {
+                caigApiKeyShow = !caigApiKeyShow;
+            }
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.Space();
+            if (GUILayout.Button("Save API Key"))
+            {
+                caigApiKey = caigApiKeyTemp;
+                OISettings.Instance.ApiKey = caigApiKey;
+                EditorUtility.SetDirty(OISettings.Instance);
+                AssetDatabase.SaveAssets();
+                EditorUtility.DisplayDialog("Saved", "API Key has been saved.", "OK");
+            }
         }
     }
 } 

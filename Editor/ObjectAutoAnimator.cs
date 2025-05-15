@@ -1,8 +1,6 @@
 using UnityEngine;
-using UnityEditor;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using OojuInteractionPlugin;
 
 namespace OojuInteractionPlugin
@@ -18,216 +16,162 @@ namespace OojuInteractionPlugin
     }
 
     // Core interfaces and classes
-    public interface IObjectAnimation
-    {
-        bool IsPlaying { get; }
-        void StartAnimation();
-        void StopAnimation();
-        void ResetToInitialState();
-    }
-    
-    public class ObjectAnimationFactory
-    {
-        private DefaultSettingsProvider settingsProvider;
-
-        public ObjectAnimationFactory(DefaultSettingsProvider provider)
-        {
-            settingsProvider = provider;
-        }
-
-        public IObjectAnimation CreateAnimation(GameObject obj, AnimationType type)
-        {
-            // For now, return null as we're not implementing actual animations
-            // This can be expanded later with actual animation implementations
-            return null;
-        }
-    }
-
-    public class CoroutineManager : MonoBehaviour
-    {
-        private static CoroutineManager _instance;
-        public static CoroutineManager Instance
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    var go = new GameObject("CoroutineManager");
-                    _instance = go.AddComponent<CoroutineManager>();
-                    DontDestroyOnLoad(go);
-                }
-                return _instance;
-            }
-        }
-
-        public void StopManagedCoroutines(string id)
-        {
-            // Implementation can be added later if needed
-        }
-    }
+    // TODO: Remove or implement if needed. Currently not used.
+    // public interface IObjectAnimation { ... }
+    // public class ObjectAnimationFactory { ... }
+    // public class CoroutineManager : MonoBehaviour { ... }
 
     [AddComponentMenu("OOJU/Object Auto Animator")]
     public class ObjectAutoAnimator : MonoBehaviour
     {
-        [Header("Animation Settings")]
-        public AnimationType animationType = AnimationType.None;
-        private IObjectAnimation currentAnimation;
+        private AnimationSettings settings;
+        private AnimationType animationType = AnimationType.None;
+        private RelationalType relationalType = RelationalType.None;
+        private Transform relationalReferenceObject = null;
+        private List<Transform> pathPoints = new List<Transform>();
+        private Vector3 originalPosition;
+        private Quaternion originalRotation;
+        private Vector3 originalScale;
+        private Coroutine currentAnimationCoroutine = null;
 
-        [Header("Hover Settings")]
-        public float hoverSpeed = 1f;
-        public float baseHoverDistance = 0.1f;
+        // Animation parameters (always referenced from AnimationSettings)
+        public float hoverSpeed => settings.hoverSpeed;
+        public float baseHoverDistance => settings.hoverDistance;
+        public float wobbleSpeed => settings.wobbleSpeed;
+        public float baseWobbleAngle => settings.wobbleAngle;
+        public float orbitRadius => settings.orbitRadius;
+        public float orbitSpeed => settings.orbitSpeed;
+        public float orbitDuration => settings.orbitDuration;
+        public float lookAtSpeed => settings.lookAtSpeed;
+        public float lookAtDuration => settings.lookAtDuration;
+        public float followSpeed => settings.followSpeed;
+        public float followStopDistance => settings.followStopDistance;
+        public float followDuration => settings.followDuration;
+        public float pathMoveSpeed => settings.pathMoveSpeed;
+        public float pathMoveDuration => settings.orbitDuration;
+        public bool snapRotation => settings.snapRotation;
 
-        [Header("Wobble Settings")]
-        public float wobbleSpeed = 2f;
-        public float baseWobbleAngle = 5f;
-
-        [Header("Spin Settings")]
-        public float spinSpeed = 90f;
-
-        [Header("Shake Settings")]
-        public float shakeDuration = 0.5f;
-        public float baseShakeMagnitude = 0.1f;
-
-        [Header("Bounce Settings")]
-        public float bounceSpeed = 1f;
-        public float baseBounceHeight = 0.5f;
-        public float squashStretchRatio = 0.1f;
-
-        [Header("Relational Animation Settings")]
-        public RelationalType relationalType = RelationalType.None;
-        public Transform relationalReferenceObject;
-        public float orbitRadius = 2f;
-        public float orbitSpeed = 1f;
-        public float orbitDuration = 3f;
-        public float lookAtSpeed = 5f;
-        public float lookAtDuration = 2f;
-        public float followSpeed = 2f;
-        public float followStopDistance = 0.2f;
-        public float followDuration = 3f;
-        public List<Transform> pathPoints = new List<Transform>();
-        public float pathMoveSpeed = 2f;
-        public float pathMoveDuration = 3f;
-        public bool snapRotation = true;
-
-        // Private variables for transform state
-        private Vector3 initialPosition;
-        private Quaternion initialRotation;
-        private Vector3 initialScale;
-        private float objectSize;
-        private bool isAnimating = false;
-
-        // Unique identifier for coroutine management
-        private string CoroutineIdentifier => $"ObjectAutoAnimator_{GetInstanceID()}";
+        public RelationalType RelationalType
+        {
+            get => relationalType;
+            private set => relationalType = value;
+        }
+        public Transform RelationalReferenceObject
+        {
+            get => relationalReferenceObject;
+            private set => relationalReferenceObject = value;
+        }
+        public List<Transform> PathPoints
+        {
+            get => pathPoints;
+            private set => pathPoints = value;
+        }
 
         private void Awake()
         {
-            // Create animation based on type
-            var factory = new ObjectAnimationFactory(new DefaultSettingsProvider());
-            currentAnimation = factory.CreateAnimation(gameObject, animationType);
+            settings = AnimationSettings.Instance;
+            StoreOriginalTransform();
         }
 
-        private void OnEnable()
+        private void StoreOriginalTransform()
         {
-            if (currentAnimation != null)
-            {
-                currentAnimation.StartAnimation();
-            }
-            // Store initial transform state
-            StoreInitialState();
+            originalPosition = transform.position;
+            originalRotation = transform.rotation;
+            originalScale = transform.localScale;
         }
 
-        private void StoreInitialState()
+        public void SetAnimationType(AnimationType type)
         {
-            initialPosition = transform.position;
-            initialRotation = transform.rotation;
-            initialScale = transform.localScale;
-
-            // Calculate object size based on renderer bounds
-            var renderer = GetComponentInChildren<Renderer>();
-            if (renderer != null)
+            animationType = type;
+            StopCurrentAnimation();
+            if (Application.isPlaying)
             {
-                objectSize = renderer.bounds.extents.magnitude;
-            }
-            else
-            {
-                objectSize = 1f;
-                Debug.LogWarning($"No renderer found in {gameObject.name}. Using default size.");
+                StartAnimation();
             }
         }
 
-        private void Start()
+        public void StartAnimation()
         {
-            StoreInitialState();
-            StartAnimation();
-            // Automatically start Relational Animation
-            switch (relationalType)
+            StopCurrentAnimation();
+            switch (animationType)
             {
-                case RelationalType.Orbit:
-                    if (relationalReferenceObject != null)
-                        StartOrbit(relationalReferenceObject, orbitRadius, orbitSpeed, orbitDuration);
+                case AnimationType.Hover:
+                    currentAnimationCoroutine = StartCoroutine(HoverAnimation());
                     break;
-                case RelationalType.LookAt:
-                    if (relationalReferenceObject != null)
-                        StartLookAt(relationalReferenceObject, lookAtSpeed, lookAtDuration);
+                case AnimationType.Wobble:
+                    currentAnimationCoroutine = StartCoroutine(WobbleAnimation());
                     break;
-                case RelationalType.Follow:
-                    if (relationalReferenceObject != null)
-                        StartFollow(relationalReferenceObject, followSpeed, followStopDistance, followDuration);
-                    break;
-                case RelationalType.MoveAlongPath:
-                    if (pathPoints != null && pathPoints.Count > 0)
-                        StartMoveAlongPath(pathPoints, pathMoveSpeed, pathMoveDuration);
-                    break;
-                case RelationalType.SnapToObject:
-                    if (relationalReferenceObject != null)
-                        SnapToObject(relationalReferenceObject, snapRotation);
+                case AnimationType.Scale:
+                    currentAnimationCoroutine = StartCoroutine(ScaleAnimation());
                     break;
             }
-            Debug.Log($"[AutoAnimator] relationalType={relationalType}, reference={relationalReferenceObject}");
         }
 
-        private void OnDisable()
+        public void StartOrbit(Transform target, float radius, float speed, float duration)
         {
-            if (currentAnimation != null)
-            {
-                currentAnimation.StopAnimation();
-            }
-            CoroutineManager.Instance.StopManagedCoroutines(CoroutineIdentifier);
-            // Reset to initial state when disabled
-            if (gameObject.activeInHierarchy)
-            {
-                transform.position = initialPosition;
-                transform.rotation = initialRotation;
-                transform.localScale = initialScale;
-            }
-            isAnimating = false;
+            StopCurrentAnimation();
+            RelationalType = RelationalType.Orbit;
+            RelationalReferenceObject = target;
+            currentAnimationCoroutine = StartCoroutine(OrbitAnimation());
         }
 
-        private void OnDestroy()
+        public void StartLookAt(Transform target, float speed, float duration)
         {
-            if (currentAnimation != null)
+            StopCurrentAnimation();
+            RelationalType = RelationalType.LookAt;
+            RelationalReferenceObject = target;
+            currentAnimationCoroutine = StartCoroutine(LookAtAnimation());
+        }
+
+        public void StartFollow(Transform target, float speed, float stopDistance, float duration)
+        {
+            StopCurrentAnimation();
+            RelationalType = RelationalType.Follow;
+            RelationalReferenceObject = target;
+            currentAnimationCoroutine = StartCoroutine(FollowAnimation());
+        }
+
+        public void StartMoveAlongPath(List<Transform> points, float speed, float duration)
+        {
+            StopCurrentAnimation();
+            RelationalType = RelationalType.MoveAlongPath;
+            PathPoints = points;
+            currentAnimationCoroutine = StartCoroutine(MoveAlongPathAnimation());
+        }
+
+        public void SnapToObject(Transform target, bool rotate)
+        {
+            StopCurrentAnimation();
+            RelationalType = RelationalType.SnapToObject;
+            RelationalReferenceObject = target;
+            currentAnimationCoroutine = StartCoroutine(SnapToObjectAnimation());
+        }
+
+        private void StopCurrentAnimation()
+        {
+            if (currentAnimationCoroutine != null)
             {
-                currentAnimation.StopAnimation();
-                currentAnimation.ResetToInitialState();
+                StopCoroutine(currentAnimationCoroutine);
+                currentAnimationCoroutine = null;
             }
-            CoroutineManager.Instance.StopManagedCoroutines(CoroutineIdentifier);
+            ResetTransform();
+        }
+
+        private void ResetTransform()
+        {
+            transform.position = originalPosition;
+            transform.rotation = originalRotation;
+            transform.localScale = originalScale;
         }
 
         private IEnumerator HoverAnimation()
         {
             float time = 0f;
-            // Scale hover distance based on object size
-            float scaledHoverDistance = baseHoverDistance * objectSize;
-            var rb = GetComponent<Rigidbody>();
-            while (isAnimating)
+            while (true)
             {
                 time += Time.deltaTime * hoverSpeed;
-                float yOffset = Mathf.Sin(time) * scaledHoverDistance;
-                Vector3 targetPos = initialPosition + new Vector3(0f, yOffset, 0f);
-                if (rb != null && rb.isKinematic)
-                    rb.MovePosition(targetPos);
-                else
-                    transform.position = targetPos;
+                float yOffset = Mathf.Sin(time) * baseHoverDistance;
+                transform.position = originalPosition + new Vector3(0f, yOffset, 0f);
                 yield return null;
             }
         }
@@ -235,313 +179,143 @@ namespace OojuInteractionPlugin
         private IEnumerator WobbleAnimation()
         {
             float time = 0f;
-            // Scale wobble angle based on object size
-            float scaledWobbleAngle = baseWobbleAngle;
-
-            while (isAnimating)
+            while (true)
             {
                 time += Time.deltaTime * wobbleSpeed;
-                float rotationX = Mathf.Sin(time) * scaledWobbleAngle;
-                float rotationZ = Mathf.Cos(time) * scaledWobbleAngle;
-                transform.rotation = initialRotation * Quaternion.Euler(rotationX, 0f, rotationZ);
+                float angle = Mathf.Sin(time) * baseWobbleAngle;
+                transform.rotation = originalRotation * Quaternion.Euler(0f, 0f, angle);
                 yield return null;
             }
         }
 
-        private IEnumerator SpinAnimation()
+        private IEnumerator ScaleAnimation()
         {
             float time = 0f;
-            while (isAnimating)
-            {
-                time += Time.deltaTime * spinSpeed;
-                transform.rotation = initialRotation * Quaternion.Euler(0f, time, 0f);
-                yield return null;
-            }
-        }
-
-        private IEnumerator ShakeAnimation()
-        {
-            float elapsed = 0f;
-            // Scale shake magnitude based on object size
-            float scaledShakeMagnitude = baseShakeMagnitude * objectSize;
-            var rb = GetComponent<Rigidbody>();
-            while (elapsed < shakeDuration && isAnimating)
-            {
-                elapsed += Time.deltaTime;
-                float progress = elapsed / shakeDuration;
-                float currentMagnitude = scaledShakeMagnitude * (1f - progress);
-
-                Vector3 randomOffset = Random.insideUnitSphere * currentMagnitude;
-                Vector3 targetPos = initialPosition + randomOffset;
-                if (rb != null && rb.isKinematic)
-                    rb.MovePosition(targetPos);
-                else
-                    transform.position = targetPos;
-                transform.rotation = initialRotation * Quaternion.Euler(
-                    Random.Range(-currentMagnitude, currentMagnitude),
-                    Random.Range(-currentMagnitude, currentMagnitude),
-                    Random.Range(-currentMagnitude, currentMagnitude)
-                );
-
-                yield return null;
-            }
-
-            // Reset to initial state when shake ends
-            if (rb != null && rb.isKinematic)
-                rb.MovePosition(initialPosition);
-            else
-                transform.position = initialPosition;
-            transform.rotation = initialRotation;
-            isAnimating = false;
-        }
-
-        private IEnumerator BounceAnimation()
-        {
-            float time = 0f;
-            // Scale bounce height based on object size
-            float scaledBounceHeight = baseBounceHeight * objectSize;
-            var rb = GetComponent<Rigidbody>();
-            while (isAnimating)
-            {
-                time += Time.deltaTime * bounceSpeed;
-                float yOffset = Mathf.Abs(Mathf.Sin(time)) * scaledBounceHeight;
-                Vector3 targetPos = initialPosition + new Vector3(0f, yOffset, 0f);
-                if (rb != null && rb.isKinematic)
-                    rb.MovePosition(targetPos);
-                else
-                    transform.position = targetPos;
-
-                // Apply squash and stretch effect relative to initial scale
-                float squashFactor = 1f - (Mathf.Abs(Mathf.Sin(time)) * squashStretchRatio);
-                float stretchFactor = 1f + (Mathf.Abs(Mathf.Sin(time)) * squashStretchRatio * 0.5f);
-                transform.localScale = new Vector3(
-                    initialScale.x * stretchFactor,
-                    initialScale.y * squashFactor,
-                    initialScale.z * stretchFactor
-                );
-
-                yield return null;
-            }
-        }
-
-        public void StartAnimation()
-        {
-            if (currentAnimation != null && !currentAnimation.IsPlaying)
-            {
-                currentAnimation.StartAnimation();
-            }
-        }
-
-        public void StopAnimation()
-        {
-            if (currentAnimation != null && currentAnimation.IsPlaying)
-            {
-                currentAnimation.StopAnimation();
-            }
-        }
-
-        public void ResetToInitialState()
-        {
-            if (currentAnimation != null)
-            {
-                currentAnimation.ResetToInitialState();
-            }
-        }
-
-        public void SetAnimationType(AnimationType newType)
-        {
-            if (animationType == newType)
-                return;
-
-            // Stop and clean up current animation
-            if (currentAnimation != null)
-            {
-                currentAnimation.StopAnimation();
-                currentAnimation.ResetToInitialState();
-                Destroy(currentAnimation as MonoBehaviour);
-            }
-
-            // Create new animation
-            animationType = newType;
-            var factory = new ObjectAnimationFactory(new DefaultSettingsProvider());
-            currentAnimation = factory.CreateAnimation(gameObject, animationType);
-
-            // Start new animation if component is enabled
-            if (enabled)
-            {
-                currentAnimation.StartAnimation();
-            }
-        }
-
-        // Relational Animation Methods
-        public void StartOrbit(Transform reference, float radius, float speed, float duration)
-        {
-            if (Application.isPlaying)
-            {
-                StoreInitialState();
-                StopAllCoroutines();
-                StartCoroutine(OrbitAroundObject(reference, radius, speed, duration));
-            }
-            else
-            {
-                Undo.RecordObject(this, "Set Relational Animation Params");
-                EditorUtility.SetDirty(this);
-            }
-        }
-
-        private IEnumerator OrbitAroundObject(Transform reference, float radius, float speed, float duration)
-        {
-            Vector3 center = reference.position;
-            Vector3 startOffset = transform.position - center;
-            float startAngle = Mathf.Atan2(startOffset.z, startOffset.x);
-            float time = 0f;
-            var rb = GetComponent<Rigidbody>();
-            while (duration <= 0f || time < duration)
+            while (true)
             {
                 time += Time.deltaTime;
-                float angle = startAngle + time * speed;
-                Vector3 offset = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius;
-                Vector3 targetPos = center + offset;
-                if (rb != null && rb.isKinematic)
-                    rb.MovePosition(targetPos);
-                else
-                    transform.position = targetPos;
+                float scale = 1f + Mathf.Sin(time) * 0.1f;
+                transform.localScale = originalScale * scale;
                 yield return null;
             }
-            // Return to initial position
-            if (rb != null && rb.isKinematic)
-                rb.MovePosition(initialPosition);
-            else
-                transform.position = initialPosition;
-            transform.rotation = initialRotation;
         }
 
-        public void StartLookAt(Transform target, float lookSpeed, float duration)
-        {
-            if (Application.isPlaying)
-            {
-                StoreInitialState();
-                StopAllCoroutines();
-                StartCoroutine(LookAtTarget(target, lookSpeed, duration));
-            }
-            else
-            {
-                Undo.RecordObject(this, "Set Relational Animation Params");
-                EditorUtility.SetDirty(this);
-            }
-        }
-
-        private IEnumerator LookAtTarget(Transform target, float lookSpeed, float duration)
+        private IEnumerator OrbitAnimation()
         {
             float time = 0f;
-            while (duration <= 0f || time < duration)
+            Vector3 center = RelationalReferenceObject.position;
+            Vector3 startPosition = transform.position;
+            Vector3 orbitAxis = Vector3.up;
+
+            while (time < orbitDuration)
             {
                 time += Time.deltaTime;
-                Vector3 direction = (target.position - transform.position).normalized;
-                Quaternion targetRotation = Quaternion.LookRotation(direction);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, lookSpeed * Time.deltaTime);
+                float angle = (time / orbitDuration) * 360f * orbitSpeed;
+                Vector3 offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.right * orbitRadius);
+                transform.position = center + offset;
                 yield return null;
             }
-            // Return to initial position
-            transform.rotation = initialRotation;
-            transform.position = initialPosition;
+
+            ResetTransform();
         }
 
-        public void StartFollow(Transform target, float followSpeed, float stopDistance, float duration)
-        {
-            if (Application.isPlaying)
-            {
-                StoreInitialState();
-                StopAllCoroutines();
-                StartCoroutine(FollowTarget(target, followSpeed, stopDistance, duration));
-            }
-            else
-            {
-                Undo.RecordObject(this, "Set Relational Animation Params");
-                EditorUtility.SetDirty(this);
-            }
-        }
-
-        private IEnumerator FollowTarget(Transform target, float followSpeed, float stopDistance, float duration)
+        private IEnumerator LookAtAnimation()
         {
             float time = 0f;
-            var rb = GetComponent<Rigidbody>();
-            while (duration <= 0f || time < duration)
+            Quaternion startRotation = transform.rotation;
+            Vector3 targetDirection = (RelationalReferenceObject.position - transform.position).normalized;
+            Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
+
+            while (time < lookAtDuration)
             {
                 time += Time.deltaTime;
-                Vector3 direction = (target.position - transform.position);
-                if (direction.magnitude > stopDistance)
+                float t = time / lookAtDuration;
+                transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
+                yield return null;
+            }
+
+            ResetTransform();
+        }
+
+        private IEnumerator FollowAnimation()
+        {
+            float time = 0f;
+            Vector3 startPosition = transform.position;
+
+            while (time < followDuration)
+            {
+                time += Time.deltaTime;
+                Vector3 targetPosition = RelationalReferenceObject.position;
+                Vector3 direction = (targetPosition - transform.position).normalized;
+                float distance = Vector3.Distance(transform.position, targetPosition);
+
+                if (distance > followStopDistance)
                 {
-                    Vector3 move = direction.normalized * followSpeed * Time.deltaTime;
-                    Vector3 targetPos = transform.position + move;
-                    if (rb != null && rb.isKinematic)
-                        rb.MovePosition(targetPos);
-                    else
-                        transform.position = targetPos;
+                    transform.position += direction * followSpeed * Time.deltaTime;
+                }
+
+                yield return null;
+            }
+
+            ResetTransform();
+        }
+
+        private IEnumerator MoveAlongPathAnimation()
+        {
+            if (PathPoints.Count < 2) yield break;
+
+            float time = 0f;
+            int currentPoint = 0;
+            Vector3 startPosition = transform.position;
+
+            while (time < pathMoveDuration)
+            {
+                time += Time.deltaTime;
+                float t = time / pathMoveDuration;
+
+                int nextPoint = (currentPoint + 1) % PathPoints.Count;
+                Vector3 currentPos = PathPoints[currentPoint].position;
+                Vector3 nextPos = PathPoints[nextPoint].position;
+
+                transform.position = Vector3.Lerp(currentPos, nextPos, t);
+
+                if (t >= 1f)
+                {
+                    currentPoint = nextPoint;
+                    time = 0f;
+                }
+
+                yield return null;
+            }
+
+            ResetTransform();
+        }
+
+        private IEnumerator SnapToObjectAnimation()
+        {
+            float time = 0f;
+            Vector3 startPosition = transform.position;
+            Quaternion startRotation = transform.rotation;
+            Vector3 targetPosition = RelationalReferenceObject.position;
+            Quaternion targetRotation = snapRotation ? RelationalReferenceObject.rotation : startRotation;
+
+            while (time < 0.5f)
+            {
+                time += Time.deltaTime;
+                float t = time / 0.5f;
+                transform.position = Vector3.Lerp(startPosition, targetPosition, t);
+                if (snapRotation)
+                {
+                    transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
                 }
                 yield return null;
             }
-            // Return to initial position
-            if (rb != null && rb.isKinematic)
-                rb.MovePosition(initialPosition);
-            else
-                transform.position = initialPosition;
-        }
 
-        public void StartMoveAlongPath(List<Transform> waypoints, float moveSpeed, float duration = 0f)
-        {
-            if (Application.isPlaying)
-            {
-                StoreInitialState();
-                StopAllCoroutines();
-                StartCoroutine(MoveAlongPath(waypoints, moveSpeed, duration));
-            }
-            else
-            {
-                Undo.RecordObject(this, "Set Relational Animation Params");
-                EditorUtility.SetDirty(this);
-            }
-        }
-
-        private IEnumerator MoveAlongPath(List<Transform> waypoints, float moveSpeed, float duration = 0f)
-        {
-            int currentWaypoint = 0;
-            float time = 0f;
-            var rb = GetComponent<Rigidbody>();
-            while ((duration <= 0f || time < duration) && waypoints.Count > 0)
-            {
-                time += Time.deltaTime;
-                Transform currentTarget = waypoints[currentWaypoint];
-                if ((transform.position - currentTarget.position).magnitude <= 0.05f)
-                {
-                    currentWaypoint = (currentWaypoint + 1) % waypoints.Count;
-                }
-                else
-                {
-                    Vector3 targetPos = Vector3.MoveTowards(transform.position, currentTarget.position, moveSpeed * Time.deltaTime);
-                    if (rb != null && rb.isKinematic)
-                        rb.MovePosition(targetPos);
-                    else
-                        transform.position = targetPos;
-                }
-                yield return null;
-            }
-            // Return to initial position
-            if (rb != null && rb.isKinematic)
-                rb.MovePosition(initialPosition);
-            else
-                transform.position = initialPosition;
-        }
-
-        public void SnapToObject(Transform reference, bool snapRotation)
-        {
-            var rb = GetComponent<Rigidbody>();
-            if (rb != null && rb.isKinematic)
-                rb.MovePosition(reference.position);
-            else
-                transform.position = reference.position;
+            transform.position = targetPosition;
             if (snapRotation)
-                transform.rotation = reference.rotation;
+            {
+                transform.rotation = targetRotation;
+            }
         }
     }
 } 

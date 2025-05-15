@@ -13,4 +13,19 @@ namespace OojuInteractionPlugin
         Scale
         // Add more as needed
     }
+
+    public enum AnimationCategory
+    {
+        Independent,
+        Relational
+    }
+
+    public enum RelationalAnimationType
+    {
+        Orbit,
+        LookAt,
+        Follow,
+        MoveAlongPath,
+        SnapToObject
+    }
 } 
