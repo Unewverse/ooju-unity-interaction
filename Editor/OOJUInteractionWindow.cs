@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System;
 using OojuInteractionPlugin;
 
-namespace OojuCustomPlugin
+namespace OojuInteractionPlugin
 {
     public class OOJUInteractionWindow : EditorWindow
     {
@@ -21,7 +21,7 @@ namespace OojuCustomPlugin
         private bool caigApiKeyShow = false;
 
         // Animation state variables
-        private OojuInteractionPlugin.AnimationType selectedAnimationType = OojuInteractionPlugin.AnimationType.None;
+        private AnimationType selectedAnimationType = AnimationType.None;
         private float hoverSpeed = 1f;
         private float hoverDistance = 0.1f;
         private float wobbleSpeed = 2f;
@@ -65,7 +65,7 @@ namespace OojuCustomPlugin
         private void OnEnable()
         {
             styles = new UIStyles();
-            caigApiKey = CAIGSettings.Instance.OpenAIApiKey;
+            caigApiKey = OISettings.Instance.ApiKey;
             caigApiKeyTemp = caigApiKey;
         }
 
@@ -188,24 +188,24 @@ namespace OojuCustomPlugin
                 EditorGUILayout.HelpBox("Independent animations are applied to each object individually (e.g., Hover, Wobble, Spin, Shake, Bounce).", MessageType.Info);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Label("Animation Type:", GUILayout.Width(100));
-                selectedAnimationType = (OojuInteractionPlugin.AnimationType)EditorGUILayout.EnumPopup(selectedAnimationType);
+                selectedAnimationType = (AnimationType)EditorGUILayout.EnumPopup(selectedAnimationType);
                 EditorGUILayout.EndHorizontal();
-                if (selectedAnimationType != OojuInteractionPlugin.AnimationType.None)
+                if (selectedAnimationType != AnimationType.None)
                 {
                     EditorGUILayout.Space();
                     EditorGUILayout.LabelField("Animation Parameters", EditorStyles.boldLabel);
                     EditorGUI.indentLevel++;
                     switch (selectedAnimationType)
                     {
-                        case OojuInteractionPlugin.AnimationType.Hover:
+                        case AnimationType.Hover:
                             hoverSpeed = EditorGUILayout.FloatField("Hover Speed", hoverSpeed);
                             hoverDistance = EditorGUILayout.FloatField("Hover Distance", hoverDistance);
                             break;
-                        case OojuInteractionPlugin.AnimationType.Wobble:
+                        case AnimationType.Wobble:
                             wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", wobbleSpeed);
                             wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", wobbleAngle);
                             break;
-                        case OojuInteractionPlugin.AnimationType.Scale:
+                        case AnimationType.Scale:
                             // Scale parameters
                             break;
                     }
@@ -254,17 +254,17 @@ namespace OojuCustomPlugin
 
                                 switch (selectedAnimationType)
                                 {
-                                    case OojuInteractionPlugin.AnimationType.Hover:
+                                    case AnimationType.Hover:
                                         animator.SetAnimationType(selectedAnimationType);
                                         animator.hoverSpeed = hoverSpeed;
                                         animator.baseHoverDistance = hoverDistance;
                                         break;
-                                    case OojuInteractionPlugin.AnimationType.Wobble:
+                                    case AnimationType.Wobble:
                                         animator.SetAnimationType(selectedAnimationType);
                                         animator.wobbleSpeed = wobbleSpeed;
                                         animator.baseWobbleAngle = wobbleAngle;
                                         break;
-                                    case OojuInteractionPlugin.AnimationType.Scale:
+                                    case AnimationType.Scale:
                                         animator.SetAnimationType(selectedAnimationType);
                                         break;
                                 }
@@ -492,8 +492,8 @@ namespace OojuCustomPlugin
             if (GUILayout.Button("Save API Key"))
             {
                 caigApiKey = caigApiKeyTemp;
-                CAIGSettings.Instance.OpenAIApiKey = caigApiKey;
-                EditorUtility.SetDirty(CAIGSettings.Instance);
+                OISettings.Instance.ApiKey = caigApiKey;
+                EditorUtility.SetDirty(OISettings.Instance);
                 AssetDatabase.SaveAssets();
                 EditorUtility.DisplayDialog("Saved", "API Key has been saved.", "OK");
             }
@@ -505,13 +505,13 @@ namespace OojuCustomPlugin
             Repaint();
             try
             {
-                if (string.IsNullOrEmpty(CAIGSettings.Instance.OpenAIApiKey))
+                if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
                 {
                     EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
                     return;
                 }
 
-                sceneDescription = await CAIGDescriptor.GenerateSceneDescription();
+                sceneDescription = await OIDescriptor.GenerateSceneDescription();
                 interactionSuggestions = null;
                 EditorUtility.DisplayDialog("Scene Description", "Scene description generated successfully.", "OK");
             }
@@ -547,7 +547,7 @@ namespace OojuCustomPlugin
             Repaint();
             try
             {
-                interactionSuggestions = await CAIGDescriptor.GenerateInteractionSuggestions(sceneDescription, selectedObjects);
+                interactionSuggestions = await OIDescriptor.GenerateInteractionSuggestions(sceneDescription, selectedObjects);
                 EditorUtility.DisplayDialog("Interaction Suggestions", "Suggestions generated successfully.", "OK");
             }
             catch (System.Exception ex)
