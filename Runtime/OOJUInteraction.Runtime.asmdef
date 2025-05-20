@@ -1,8 +1,9 @@
 {
   "name": "OOJUInteraction.Runtime",
+  "rootNamespace": "OojuInteractionPlugin",
   "references": [],
   "includePlatforms": [],
-  "excludePlatforms": ["Editor"],
+  "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],

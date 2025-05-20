@@ -27,6 +27,7 @@ namespace OojuInteractionPlugin
         public float followStopDistance = 0.2f;
         public float followDuration = 3f;
         public float pathMoveSpeed = 2f;
+        public float pathMoveDuration = 3f;
         public bool snapRotation = true;
 
         // Singleton instance

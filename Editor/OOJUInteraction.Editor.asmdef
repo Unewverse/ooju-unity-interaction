@@ -1,5 +1,6 @@
 {
   "name": "OOJUInteraction.Editor",
+  "rootNamespace": "OojuInteractionPlugin",
   "references": [
     "OOJUInteraction.Runtime"
   ],

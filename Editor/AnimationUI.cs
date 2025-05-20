@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using OojuInteractionPlugin;
 
 namespace OojuInteractionPlugin
 {
@@ -270,6 +271,7 @@ namespace OojuInteractionPlugin
             var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
             Undo.RecordObject(animator, "Set Animation");
 
+            animator.SetOriginalTransform(obj.transform.position, obj.transform.rotation, obj.transform.localScale);
             animator.SetAnimationType(viewModel.SelectedAnimationType);
 
             EditorUtility.SetDirty(animator);

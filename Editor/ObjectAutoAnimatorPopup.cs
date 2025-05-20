@@ -14,10 +14,17 @@ public class ObjectAutoAnimatorPopup : EditorWindow
     // AnimationPreset ScriptableObject reference
     public AnimationPreset preset;
 
+    // Animation parameters (default values)
     private float hoverSpeed = 1f;
-    private float hoverDistance = 0.1f;
+    private float baseHoverDistance = 0.1f;
     private float wobbleSpeed = 2f;
-    private float wobbleAngle = 5f;
+    private float baseWobbleAngle = 5f;
+    private float spinSpeed = 90f;
+    private float shakeDuration = 0.5f;
+    private float baseShakeMagnitude = 0.1f;
+    private float bounceSpeed = 1f;
+    private float baseBounceHeight = 0.5f;
+    private float squashStretchRatio = 0.1f;
     private float scaleAmount = 1f;
 
     private void OnEnable()
@@ -26,17 +33,17 @@ public class ObjectAutoAnimatorPopup : EditorWindow
         if (preset != null)
         {
             hoverSpeed = preset.hoverSpeed;
-            hoverDistance = preset.baseHoverDistance;
+            baseHoverDistance = preset.baseHoverDistance;
             wobbleSpeed = preset.wobbleSpeed;
-            wobbleAngle = preset.baseWobbleAngle;
+            baseWobbleAngle = preset.baseWobbleAngle;
             // scaleAmount can be added to preset if needed
         }
         else
         {
             hoverSpeed = AnimationSettings.Instance.hoverSpeed;
-            hoverDistance = AnimationSettings.Instance.hoverDistance;
+            baseHoverDistance = AnimationSettings.Instance.hoverDistance;
             wobbleSpeed = AnimationSettings.Instance.wobbleSpeed;
-            wobbleAngle = AnimationSettings.Instance.wobbleAngle;
+            baseWobbleAngle = AnimationSettings.Instance.wobbleAngle;
             // scaleAmount = 1f;
         }
     }
@@ -68,11 +75,11 @@ public class ObjectAutoAnimatorPopup : EditorWindow
         {
             case AnimationType.Hover:
                 hoverSpeed = EditorGUILayout.FloatField("Hover Speed", hoverSpeed);
-                hoverDistance = EditorGUILayout.FloatField("Hover Distance", hoverDistance);
+                baseHoverDistance = EditorGUILayout.FloatField("Base Hover Distance", baseHoverDistance);
                 break;
             case AnimationType.Wobble:
                 wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", wobbleSpeed);
-                wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", wobbleAngle);
+                baseWobbleAngle = EditorGUILayout.FloatField("Base Wobble Angle", baseWobbleAngle);
                 break;
             case AnimationType.Scale:
                 scaleAmount = EditorGUILayout.FloatField("Scale Amount", scaleAmount);
@@ -96,28 +103,51 @@ public class ObjectAutoAnimatorPopup : EditorWindow
     private void ApplyAnimation()
     {
         if (targetObject == null) return;
+
+        // Backup current transform values
+        Vector3 pos = targetObject.transform.position;
+        Quaternion rot = targetObject.transform.rotation;
+        Vector3 scale = targetObject.transform.localScale;
+
         var animator = targetObject.GetComponent<ObjectAutoAnimator>();
         if (animator == null)
         {
-            animator = Undo.AddComponent<ObjectAutoAnimator>(targetObject);
+            animator = targetObject.AddComponent<ObjectAutoAnimator>();
+            // Restore transform values in case Unity resets them
+            targetObject.transform.position = pos;
+            targetObject.transform.rotation = rot;
+            targetObject.transform.localScale = scale;
         }
-        Undo.RecordObject(animator, "Set ObjectAutoAnimator Properties");
+
+        // Always set original transform with the correct values
+        animator.SetOriginalTransform(pos, rot, scale);
+
         animator.SetAnimationType(animationType);
         // Set parameters for each type
         switch (animationType)
         {
             case AnimationType.Hover:
                 AnimationSettings.Instance.hoverSpeed = hoverSpeed;
-                AnimationSettings.Instance.hoverDistance = hoverDistance;
+                AnimationSettings.Instance.hoverDistance = baseHoverDistance;
                 break;
             case AnimationType.Wobble:
                 AnimationSettings.Instance.wobbleSpeed = wobbleSpeed;
-                AnimationSettings.Instance.wobbleAngle = wobbleAngle;
+                AnimationSettings.Instance.wobbleAngle = baseWobbleAngle;
                 break;
             case AnimationType.Scale:
                 // If you add scaleAmount to AnimationSettings, set it here
                 break;
         }
+        animator.hoverSpeed = hoverSpeed;
+        animator.baseHoverDistance = baseHoverDistance;
+        animator.wobbleSpeed = wobbleSpeed;
+        animator.baseWobbleAngle = baseWobbleAngle;
+        animator.spinSpeed = spinSpeed;
+        animator.shakeDuration = shakeDuration;
+        animator.baseShakeMagnitude = baseShakeMagnitude;
+        animator.bounceSpeed = bounceSpeed;
+        animator.baseBounceHeight = baseBounceHeight;
+        animator.squashStretchRatio = squashStretchRatio;
         EditorUtility.SetDirty(animator);
     }
 }

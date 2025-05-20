@@ -1,20 +1,11 @@
 using UnityEngine;
 using System.Collections;
+using UnityEditor;
 using System.Collections.Generic;
 using OojuInteractionPlugin;
 
 namespace OojuInteractionPlugin
 {
-    public enum RelationalType
-    {
-        None,
-        Orbit,
-        LookAt,
-        Follow,
-        MoveAlongPath,
-        SnapToObject
-    }
-
     // Core interfaces and classes
     // TODO: Remove or implement if needed. Currently not used.
     // public interface IObjectAnimation { ... }
@@ -35,21 +26,16 @@ namespace OojuInteractionPlugin
         private Coroutine currentAnimationCoroutine = null;
 
         // Animation parameters (always referenced from AnimationSettings)
-        public float hoverSpeed => settings.hoverSpeed;
-        public float baseHoverDistance => settings.hoverDistance;
-        public float wobbleSpeed => settings.wobbleSpeed;
-        public float baseWobbleAngle => settings.wobbleAngle;
-        public float orbitRadius => settings.orbitRadius;
-        public float orbitSpeed => settings.orbitSpeed;
-        public float orbitDuration => settings.orbitDuration;
-        public float lookAtSpeed => settings.lookAtSpeed;
-        public float lookAtDuration => settings.lookAtDuration;
-        public float followSpeed => settings.followSpeed;
-        public float followStopDistance => settings.followStopDistance;
-        public float followDuration => settings.followDuration;
-        public float pathMoveSpeed => settings.pathMoveSpeed;
-        public float pathMoveDuration => settings.orbitDuration;
-        public bool snapRotation => settings.snapRotation;
+        public float hoverSpeed { get; set; }
+        public float baseHoverDistance { get; set; }
+        public float wobbleSpeed { get; set; }
+        public float baseWobbleAngle { get; set; }
+        public float spinSpeed { get; set; }
+        public float shakeDuration { get; set; }
+        public float baseShakeMagnitude { get; set; }
+        public float bounceSpeed { get; set; }
+        public float baseBounceHeight { get; set; }
+        public float squashStretchRatio { get; set; }
 
         public RelationalType RelationalType
         {
@@ -70,14 +56,6 @@ namespace OojuInteractionPlugin
         private void Awake()
         {
             settings = AnimationSettings.Instance;
-            StoreOriginalTransform();
-        }
-
-        private void StoreOriginalTransform()
-        {
-            originalPosition = transform.position;
-            originalRotation = transform.rotation;
-            originalScale = transform.localScale;
         }
 
         public void SetAnimationType(AnimationType type)
@@ -93,6 +71,7 @@ namespace OojuInteractionPlugin
         public void StartAnimation()
         {
             StopCurrentAnimation();
+            StoreOriginalTransform();
             switch (animationType)
             {
                 case AnimationType.Hover:
@@ -159,6 +138,7 @@ namespace OojuInteractionPlugin
 
         private void ResetTransform()
         {
+            Debug.Log($"[ObjectAutoAnimator] ResetTransform - Resetting to originalPosition: {originalPosition}");
             transform.position = originalPosition;
             transform.rotation = originalRotation;
             transform.localScale = originalScale;
@@ -171,7 +151,9 @@ namespace OojuInteractionPlugin
             {
                 time += Time.deltaTime * hoverSpeed;
                 float yOffset = Mathf.Sin(time) * baseHoverDistance;
-                transform.position = originalPosition + new Vector3(0f, yOffset, 0f);
+                Vector3 newPos = originalPosition + new Vector3(0f, yOffset, 0f);
+                Debug.Log($"[ObjectAutoAnimator] HoverAnimation - time: {time}, yOffset: {yOffset}, newPos: {newPos}");
+                transform.position = newPos;
                 yield return null;
             }
         }
@@ -207,11 +189,11 @@ namespace OojuInteractionPlugin
             Vector3 startPosition = transform.position;
             Vector3 orbitAxis = Vector3.up;
 
-            while (time < orbitDuration)
+            while (time < settings.orbitDuration)
             {
                 time += Time.deltaTime;
-                float angle = (time / orbitDuration) * 360f * orbitSpeed;
-                Vector3 offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.right * orbitRadius);
+                float angle = (time / settings.orbitDuration) * 360f * settings.orbitSpeed;
+                Vector3 offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.right * settings.orbitRadius);
                 transform.position = center + offset;
                 yield return null;
             }
@@ -226,10 +208,10 @@ namespace OojuInteractionPlugin
             Vector3 targetDirection = (RelationalReferenceObject.position - transform.position).normalized;
             Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
 
-            while (time < lookAtDuration)
+            while (time < settings.lookAtDuration)
             {
                 time += Time.deltaTime;
-                float t = time / lookAtDuration;
+                float t = time / settings.lookAtDuration;
                 transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
                 yield return null;
             }
@@ -242,16 +224,16 @@ namespace OojuInteractionPlugin
             float time = 0f;
             Vector3 startPosition = transform.position;
 
-            while (time < followDuration)
+            while (time < settings.followDuration)
             {
                 time += Time.deltaTime;
                 Vector3 targetPosition = RelationalReferenceObject.position;
                 Vector3 direction = (targetPosition - transform.position).normalized;
                 float distance = Vector3.Distance(transform.position, targetPosition);
 
-                if (distance > followStopDistance)
+                if (distance > settings.followStopDistance)
                 {
-                    transform.position += direction * followSpeed * Time.deltaTime;
+                    transform.position += direction * settings.followSpeed * Time.deltaTime;
                 }
 
                 yield return null;
@@ -268,10 +250,10 @@ namespace OojuInteractionPlugin
             int currentPoint = 0;
             Vector3 startPosition = transform.position;
 
-            while (time < pathMoveDuration)
+            while (time < settings.pathMoveDuration)
             {
                 time += Time.deltaTime;
-                float t = time / pathMoveDuration;
+                float t = time / settings.pathMoveDuration;
 
                 int nextPoint = (currentPoint + 1) % PathPoints.Count;
                 Vector3 currentPos = PathPoints[currentPoint].position;
@@ -297,14 +279,14 @@ namespace OojuInteractionPlugin
             Vector3 startPosition = transform.position;
             Quaternion startRotation = transform.rotation;
             Vector3 targetPosition = RelationalReferenceObject.position;
-            Quaternion targetRotation = snapRotation ? RelationalReferenceObject.rotation : startRotation;
+            Quaternion targetRotation = settings.snapRotation ? RelationalReferenceObject.rotation : startRotation;
 
             while (time < 0.5f)
             {
                 time += Time.deltaTime;
                 float t = time / 0.5f;
                 transform.position = Vector3.Lerp(startPosition, targetPosition, t);
-                if (snapRotation)
+                if (settings.snapRotation)
                 {
                     transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
                 }
@@ -312,10 +294,17 @@ namespace OojuInteractionPlugin
             }
 
             transform.position = targetPosition;
-            if (snapRotation)
+            if (settings.snapRotation)
             {
                 transform.rotation = targetRotation;
             }
+        }
+
+        public void SetOriginalTransform(Vector3 pos, Quaternion rot, Vector3 scale)
+        {
+            originalPosition = pos;
+            originalRotation = rot;
+            originalScale = scale;
         }
     }
 } 
