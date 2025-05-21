@@ -206,7 +206,6 @@ namespace OojuInteractionPlugin
 
         private void ResetTransform()
         {
-            Debug.Log($"[ObjectAutoAnimator] ResetTransform - Resetting to originalPosition: {originalPosition}");
             transform.position = originalPosition;
             transform.rotation = originalRotation;
             transform.localScale = originalScale;
@@ -220,7 +219,6 @@ namespace OojuInteractionPlugin
                 time += Time.deltaTime * hoverSpeed;
                 float yOffset = Mathf.Sin(time) * baseHoverDistance;
                 Vector3 newPos = originalPosition + new Vector3(0f, yOffset, 0f);
-                Debug.Log($"[ObjectAutoAnimator] HoverAnimation - time: {time}, yOffset: {yOffset}, newPos: {newPos}");
                 transform.position = newPos;
                 yield return null;
             }
