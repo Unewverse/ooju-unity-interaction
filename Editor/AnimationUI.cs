@@ -44,17 +44,34 @@ namespace OojuInteractionPlugin
                 viewModel.PathPoints = new List<GameObject>();
             }
 
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
+            // Remove colored section box, use default background
+            EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             try
             {
                 GUILayout.Space(10);
-                EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
+                // Unified blue-gray color for section titles
+                // Color unifiedButtonColor = new Color(0.22f, 0.32f, 0.39f, 1f);
+                GUIContent animIcon = EditorGUIUtility.IconContent("Animation Icon");
+                GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel);
+                headerStyle.fontSize = 15;
+                headerStyle.normal.textColor = Color.white;
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(animIcon, GUILayout.Width(24), GUILayout.Height(24));
+                GUILayout.Space(6);
+                EditorGUILayout.LabelField("Animation", headerStyle);
+                EditorGUILayout.EndHorizontal();
                 GUILayout.Space(5);
                 EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
                 GUILayout.Space(10);
 
-                EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
-                viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" });
+                // Animation Type Category with colored toolbar
+                Color tabColor = new Color(0.27f, 0.40f, 0.47f, 1f);
+                GUIStyle toolbarStyle = new GUIStyle(EditorStyles.toolbarButton);
+                toolbarStyle.fixedHeight = 28;
+                toolbarStyle.fontSize = 12;
+                GUI.backgroundColor = tabColor;
+                viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" }, toolbarStyle);
+                GUI.backgroundColor = Color.white;
                 GUILayout.Space(10);
 
                 if (viewModel.SelectedCategory == AnimationCategory.Independent)
@@ -77,12 +94,27 @@ namespace OojuInteractionPlugin
             }
         }
 
+        // Helper: Create a single-color texture for background
+        private Texture2D MakeTex(int width, int height, Color col)
+        {
+            Color[] pix = new Color[width * height];
+            for (int i = 0; i < pix.Length; ++i)
+                pix[i] = col;
+            Texture2D result = new Texture2D(width, height);
+            result.SetPixels(pix);
+            result.Apply();
+            return result;
+        }
+
         private void DrawIndependentAnimationUI()
         {
-            EditorGUILayout.HelpBox("Independent animations are applied to each object individually (e.g., Hover, Wobble, Spin, Shake, Bounce).", MessageType.Info);
+            // Info box with icon
+            EditorGUILayout.HelpBox(new GUIContent("Independent animations are applied to each object individually (e.g., Hover, Wobble, Spin, Shake, Bounce).", EditorGUIUtility.IconContent("console.infoicon.sml").image), true);
             EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("Animation Type:", GUILayout.Width(100));
-            viewModel.SelectedAnimationType = (AnimationType)EditorGUILayout.EnumPopup(viewModel.SelectedAnimationType);
+            // Animation type label with tooltip
+            GUILayout.Label(new GUIContent("Animation Type:", "Select the animation type to apply."), GUILayout.Width(120));
+            // Enum popup with tooltip
+            viewModel.SelectedAnimationType = (AnimationType)EditorGUILayout.EnumPopup(new GUIContent("", "Choose the animation type."), viewModel.SelectedAnimationType);
             EditorGUILayout.EndHorizontal();
 
             if (viewModel.SelectedAnimationType != AnimationType.None)
@@ -93,7 +125,6 @@ namespace OojuInteractionPlugin
                 DrawIndependentAnimationParameters(viewModel.SelectedAnimationType);
                 EditorGUI.indentLevel--;
                 GUILayout.Space(10);
-
                 DrawApplyAnimationButton();
             }
         }
@@ -157,23 +188,31 @@ namespace OojuInteractionPlugin
         {
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Apply Animation", GUILayout.Width(150), GUILayout.Height(30)))
+            Color prevBg = GUI.backgroundColor;
+            Color prevContent = GUI.contentColor;
+            GUI.backgroundColor = new Color32(0x67, 0x67, 0x67, 0xFF);
+            GUI.contentColor = new Color32(0xDA, 0xDA, 0xDA, 0xFF);
+            if (GUILayout.Button(new GUIContent("Apply Animation", "Apply the selected animation to the chosen objects."), GUILayout.Width(170), GUILayout.Height(34)))
             {
                 var selectedObjects = Selection.gameObjects;
                 if (selectedObjects.Length == 0)
                 {
                     EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    GUI.backgroundColor = prevBg;
+                    GUI.contentColor = prevContent;
                     return;
                 }
                 ApplyAnimation(selectedObjects);
             }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
         }
 
         private void DrawRelationalAnimationUI()
         {
-            EditorGUILayout.HelpBox("Relational animations involve a relationship with another object (e.g., orbiting around a reference object and returning).", MessageType.Info);
+            EditorGUILayout.HelpBox("Relational animations involve a relationship with another object (e.g., orbiting around a target and returning).", MessageType.Info);
             EditorGUILayout.LabelField("Relational Animation Type", EditorStyles.boldLabel);
             viewModel.SelectedRelationalType = (RelationalAnimationType)EditorGUILayout.EnumPopup(viewModel.SelectedRelationalType);
             DrawRelationalAnimationParameters(viewModel.SelectedRelationalType);
@@ -203,18 +242,18 @@ namespace OojuInteractionPlugin
         }
         private void DrawOrbitParameters()
         {
-            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.orbitRadius = EditorGUILayout.FloatField("Orbit Radius", settings.orbitRadius);
             settings.orbitSpeed = EditorGUILayout.FloatField("Orbit Speed", settings.orbitSpeed);
         }
         private void DrawLookAtParameters()
         {
-            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.lookAtSpeed = EditorGUILayout.FloatField("Look Speed", settings.lookAtSpeed);
         }
         private void DrawFollowParameters()
         {
-            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.followSpeed = EditorGUILayout.FloatField("Follow Speed", settings.followSpeed);
             settings.followStopDistance = EditorGUILayout.FloatField("Stop Distance", settings.followStopDistance);
         }
@@ -225,7 +264,7 @@ namespace OojuInteractionPlugin
         }
         private void DrawSnapToObjectParameters()
         {
-            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", viewModel.ReferenceObject, typeof(GameObject), true);
+            viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.snapRotation = EditorGUILayout.Toggle("Snap Rotation", settings.snapRotation);
         }
 
@@ -248,30 +287,42 @@ namespace OojuInteractionPlugin
         private void DrawApplyRelationalAnimationButton()
         {
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("This animation makes the selected object move around the reference object and return to its original position.", EditorStyles.wordWrappedLabel);
+            EditorGUILayout.LabelField("This animation makes the selected object move around the target and return to its original position.", EditorStyles.wordWrappedLabel);
             GUILayout.Space(10);
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Apply Relational Animation", GUILayout.Width(180), GUILayout.Height(30)))
+            Color prevBg = GUI.backgroundColor;
+            Color prevContent = GUI.contentColor;
+            GUI.backgroundColor = new Color32(0x67, 0x67, 0x67, 0xFF);
+            GUI.contentColor = new Color32(0xDA, 0xDA, 0xDA, 0xFF);
+            if (GUILayout.Button(new GUIContent("Apply Relational Animation", "Apply the selected relational animation to the chosen objects."), GUILayout.Width(180), GUILayout.Height(30)))
             {
                 var selectedObjects = Selection.gameObjects;
                 if (selectedObjects.Length == 0)
                 {
                     EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    GUI.backgroundColor = prevBg;
+                    GUI.contentColor = prevContent;
                     return;
                 }
                 if (viewModel.ReferenceObject == null && viewModel.SelectedRelationalType != RelationalAnimationType.MoveAlongPath)
                 {
-                    EditorUtility.DisplayDialog("Error", "Please assign a reference object.", "OK");
+                    EditorUtility.DisplayDialog("Error", "Please assign a target.", "OK");
+                    GUI.backgroundColor = prevBg;
+                    GUI.contentColor = prevContent;
                     return;
                 }
                 if (viewModel.SelectedRelationalType == RelationalAnimationType.MoveAlongPath && (viewModel.PathPoints == null || viewModel.PathPoints.Count < 2))
                 {
                     EditorUtility.DisplayDialog("Error", "Please add at least two path points.", "OK");
+                    GUI.backgroundColor = prevBg;
+                    GUI.contentColor = prevContent;
                     return;
                 }
                 ApplyRelationalAnimation(selectedObjects);
             }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
         }
@@ -370,7 +421,7 @@ namespace OojuInteractionPlugin
                 animator.pathMoveSpeed = settings.pathMoveSpeed;
                 animator.snapRotation = settings.snapRotation;
 
-                // Assign relational type and reference object
+                // Assign relational type and target
                 animator.relationalType = MapRelationalAnimationTypeToRelationalType(viewModel.SelectedRelationalType);
                 animator.relationalReferenceObject = viewModel.ReferenceObject != null ? viewModel.ReferenceObject.transform : null;
                 animator.pathPoints = viewModel.PathPoints != null ? viewModel.PathPoints.FindAll(p => p != null).ConvertAll(p => p.transform) : new List<Transform>();

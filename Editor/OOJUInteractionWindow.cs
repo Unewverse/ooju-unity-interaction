@@ -46,6 +46,20 @@ namespace OojuInteractionPlugin
         // Stores the last generated class name for assignment
         private string lastGeneratedClassName = "";
 
+        // Unified blue-gray color for all buttons and section titles
+        private Color unifiedButtonColor = new Color(0.22f, 0.32f, 0.39f, 1f);
+
+        // Use a lighter, less saturated blue-gray for all main action buttons
+        private Color mainActionButtonColor = new Color(0.38f, 0.50f, 0.58f, 1f);
+
+        // 색상 정의
+        private readonly Color32 SectionTitleColor = new Color32(0xFC, 0xFC, 0xFC, 0xFF);
+        private readonly Color32 DescriptionTextColor = new Color32(0xFC, 0xFC, 0xFC, 0xFF);
+        private readonly Color32 ButtonBgColor = new Color32(0x67, 0x67, 0x67, 0xFF);
+        private readonly Color32 ButtonTextColor = new Color32(0xDA, 0xDA, 0xDA, 0xFF);
+        private readonly Color32 DisabledButtonBgColor = new Color32(0xB8, 0xB8, 0xB8, 0xFF);
+        private readonly Color32 InputTextColor = new Color32(0xDA, 0xDA, 0xDA, 0xFF);
+
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
         {
@@ -112,14 +126,26 @@ namespace OojuInteractionPlugin
         // Draws the scene description and analysis section
         private void DrawDescriptionSection(float buttonWidth)
         {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Suggest Interactions", EditorStyles.boldLabel);
-            GUILayout.Space(5);
-            EditorGUILayout.LabelField("Suggest appropriate interactions for selected objects based on the scene context.", EditorStyles.miniLabel);
-            GUILayout.Space(10);
+            // Section icon and header
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label(EditorGUIUtility.IconContent("d_UnityEditor.InspectorWindow"), GUILayout.Width(22), GUILayout.Height(22));
+            GUIStyle sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel);
+            sectionTitleStyle.fontSize = 14;
+            sectionTitleStyle.normal.textColor = SectionTitleColor;
+            GUIStyle descLabelStyle = new GUIStyle(EditorStyles.label);
+            descLabelStyle.normal.textColor = DescriptionTextColor;
+            EditorGUILayout.LabelField("Suggestion", sectionTitleStyle);
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(2);
+            EditorGUILayout.LabelField("Suggest appropriate interactions for selected objects based on the scene context.", descLabelStyle);
+            GUILayout.Space(8);
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
+            // Suggest Interactions button with lighter blue-gray color
+            Color prevBg = GUI.backgroundColor;
+            Color prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
             EditorGUI.BeginDisabledGroup(isGeneratingDescription);
             if (GUILayout.Button(new GUIContent("Suggest Interactions", "Suggest appropriate interactions for selected objects based on the scene context."), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
             {
@@ -134,12 +160,14 @@ namespace OojuInteractionPlugin
                 }
             }
             EditorGUI.EndDisabledGroup();
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
             if (!string.IsNullOrEmpty(sceneDescription))
             {
                 GUILayout.Space(2);
-                // 더 얇은 구분선
+                // Thin divider
                 Rect rect = EditorGUILayout.GetControlRect(false, 1);
                 EditorGUI.DrawRect(rect, new Color(0.3f, 0.3f, 0.3f, 1f));
                 GUILayout.Space(2);
@@ -163,21 +191,26 @@ namespace OojuInteractionPlugin
                             cleanSuggestion = System.Text.RegularExpressions.Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
                             // Show suggestion as a word-wrapped label with max width
                             EditorGUILayout.LabelField(cleanSuggestion, EditorStyles.wordWrappedLabel, GUILayout.MaxWidth(400));
-                            // Place 'Apply' button below the label
-                            if (GUILayout.Button("Apply", EditorStyles.miniButton, GUILayout.Width(60)))
+                            // Apply button with color
+                            prevBg = GUI.backgroundColor;
+                            GUI.backgroundColor = new Color(0.2f,0.7f,0.3f,1f);
+                            if (GUILayout.Button(new GUIContent("Apply", "Apply this suggestion to the input field below."), EditorStyles.miniButton, GUILayout.Width(60)))
                             {
                                 userInteractionInput = cleanSuggestion;
                             }
-                            GUILayout.Space(5); // Add some space between suggestions
+                            GUI.backgroundColor = prevBg;
+                            GUILayout.Space(5);
                             validFound = true;
                             hasAnyValid = true;
                         }
                     }
                     if (!validFound)
                     {
-                        // Show as a warning message
+                        // Warning icon and message
+                        EditorGUILayout.BeginHorizontal();
+                        GUILayout.Label(EditorGUIUtility.IconContent("console.warnicon.sml"), GUILayout.Width(18), GUILayout.Height(18));
                         EditorGUILayout.HelpBox("No valid suggestions found for this object. Please provide a description and desired interaction for this object below.", MessageType.Warning);
-                        // User input field for each object
+                        EditorGUILayout.EndHorizontal();
                         if (!userObjectInput.ContainsKey(objName)) userObjectInput[objName] = "";
                         userObjectInput[objName] = EditorGUILayout.TextArea(userObjectInput[objName], GUILayout.Height(40), GUILayout.ExpandWidth(true));
                         EditorGUILayout.LabelField("This may help if the object is not mentioned in the scene description or is not relevant to the current scene context.", EditorStyles.wordWrappedMiniLabel);
@@ -187,10 +220,14 @@ namespace OojuInteractionPlugin
                 {
                     // Do not show duplicate message; warning above is sufficient
                 }
-                // Move the button below Interaction Suggestions
                 GUILayout.Space(8);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
+                // Regenerate button with blue-gray color
+                prevBg = GUI.backgroundColor;
+                prevContent = GUI.contentColor;
+                GUI.backgroundColor = ButtonBgColor;
+                GUI.contentColor = ButtonTextColor;
                 EditorGUI.BeginDisabledGroup(isGeneratingDescription);
                 if (GUILayout.Button(new GUIContent("Regenerate Interaction Suggestions", "Generate interaction suggestions for the currently selected objects based on the existing scene description and your input."), GUILayout.Width(buttonWidth), GUILayout.Height(22)))
                 {
@@ -205,6 +242,8 @@ namespace OojuInteractionPlugin
                     }
                 }
                 EditorGUI.EndDisabledGroup();
+                GUI.backgroundColor = prevBg;
+                GUI.contentColor = prevContent;
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
             }
@@ -212,10 +251,13 @@ namespace OojuInteractionPlugin
             {
                 GUILayout.Space(4);
                 EditorGUILayout.LabelField("No interaction suggestions available.", EditorStyles.wordWrappedMiniLabel);
-                // Move the button below Interaction Suggestions (even when there are no suggestions)
                 GUILayout.Space(8);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
+                prevBg = GUI.backgroundColor;
+                prevContent = GUI.contentColor;
+                GUI.backgroundColor = ButtonBgColor;
+                GUI.contentColor = ButtonTextColor;
                 EditorGUI.BeginDisabledGroup(isGeneratingDescription);
                 if (GUILayout.Button(new GUIContent("Regenerate Interaction Suggestions", "Generate interaction suggestions for the currently selected objects based on the existing scene description and your input."), GUILayout.Width(buttonWidth), GUILayout.Height(22)))
                 {
@@ -230,31 +272,47 @@ namespace OojuInteractionPlugin
                     }
                 }
                 EditorGUI.EndDisabledGroup();
+                GUI.backgroundColor = prevBg;
+                GUI.contentColor = prevContent;
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
             }
             GUILayout.Space(10);
-            EditorGUILayout.EndVertical();
         }
 
         // Draws the sentence-to-interaction section
         private void DrawSentenceToInteractionSection(float buttonWidth)
         {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Sentence-to-Interaction", EditorStyles.boldLabel);
-            GUILayout.Space(5);
+            // Section icon and header
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label(EditorGUIUtility.IconContent("d_UnityEditor.ConsoleWindow"), GUILayout.Width(22), GUILayout.Height(22));
+            GUIStyle sectionTitleStyle2 = new GUIStyle(EditorStyles.boldLabel);
+            sectionTitleStyle2.fontSize = 14;
+            sectionTitleStyle2.normal.textColor = SectionTitleColor;
+            EditorGUILayout.LabelField("Sentence-to-Interaction", sectionTitleStyle2);
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(2);
             EditorGUILayout.LabelField("Describe the interaction you want to create as a single sentence", EditorStyles.miniLabel);
-            GUILayout.Space(10);
+            GUILayout.Space(8);
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            // Use a word-wrapped text area with a max width to prevent window stretching
+            // TextArea with placeholder
             var wordWrapStyle = new GUIStyle(EditorStyles.textField) { wordWrap = true };
+            wordWrapStyle.normal.textColor = InputTextColor;
+            if (string.IsNullOrEmpty(userInteractionInput))
+            {
+                EditorGUILayout.LabelField("e.g. Make the object spin when clicked.", EditorStyles.wordWrappedMiniLabel);
+            }
             userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, wordWrapStyle, GUILayout.Height(60), GUILayout.ExpandWidth(true), GUILayout.MaxWidth(800));
             EditorGUILayout.EndVertical();
             GUILayout.Space(10);
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Generate Interaction", GUILayout.Width(buttonWidth), GUILayout.Height(30)))
+            // Generate button with lighter blue-gray color
+            Color prevBg = GUI.backgroundColor;
+            Color prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
+            if (GUILayout.Button(new GUIContent("Generate Interaction", "Generate a Unity C# script for the described interaction."), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
             {
                 try
                 {
@@ -266,18 +324,26 @@ namespace OojuInteractionPlugin
                     EditorUtility.DisplayDialog("Error", $"Error in GenerateSentenceToInteraction: {ex.Message}", "OK");
                 }
             }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(10);
-            // Show Assign button if a script was generated
             if (!string.IsNullOrEmpty(lastGeneratedClassName) && lastGeneratedClassName != "No code block found.")
             {
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Assign Script to Selected Object(s)", GUILayout.Width(buttonWidth), GUILayout.Height(28)))
+                // Assign button with lighter blue-gray color
+                prevBg = GUI.backgroundColor;
+                prevContent = GUI.contentColor;
+                GUI.backgroundColor = ButtonBgColor;
+                GUI.contentColor = ButtonTextColor;
+                if (GUILayout.Button(new GUIContent("Assign Script to Selected Object(s)", "Assign the generated script to the selected objects."), GUILayout.Width(buttonWidth), GUILayout.Height(28)))
                 {
                     AssignScriptToSelectedObjects();
                 }
+                GUI.backgroundColor = prevBg;
+                GUI.contentColor = prevContent;
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
                 GUILayout.Space(10);
@@ -302,7 +368,6 @@ namespace OojuInteractionPlugin
                     }
                 }
             }
-            EditorGUILayout.EndVertical();
         }
 
         // Draws the animation section
@@ -681,12 +746,22 @@ namespace OojuInteractionPlugin
             {
                 caigApiKeyTemp = EditorGUILayout.PasswordField("API Key", caigApiKeyTemp);
             }
-            if (GUILayout.Button(caigApiKeyShow ? "Hide" : "Show", EditorStyles.miniButton, GUILayout.Width(60)))
+            Color prevBg = GUI.backgroundColor;
+            Color prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
+            if (GUILayout.Button(caigApiKeyShow ? "Hide" : "Show", GUILayout.Width(60)))
             {
                 caigApiKeyShow = !caigApiKeyShow;
             }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space();
+            prevBg = GUI.backgroundColor;
+            prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
             if (GUILayout.Button("Save API Key"))
             {
                 caigApiKey = caigApiKeyTemp;
@@ -695,6 +770,8 @@ namespace OojuInteractionPlugin
                 AssetDatabase.SaveAssets();
                 EditorUtility.DisplayDialog("Saved", "API Key has been saved.", "OK");
             }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
         }
 
         // Scene Description이 이미 생성된 경우, 선택된 오브젝트에 대해 Interaction Suggestion만 다시 생성하는 함수
