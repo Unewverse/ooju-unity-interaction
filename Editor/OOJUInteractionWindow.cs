@@ -212,12 +212,23 @@ namespace OojuInteractionPlugin
         {
             try
             {
+                if (animationUI == null)
+                {
+                    EditorGUILayout.HelpBox("AnimationUI is not initialized.", MessageType.Error);
+                    return;
+                }
+                // Null check for AnimationSettings.Instance
+                if (OojuInteractionPlugin.AnimationSettings.Instance == null)
+                {
+                    EditorGUILayout.HelpBox("AnimationSettings is not initialized.", MessageType.Error);
+                    return;
+                }
                 animationUI.DrawAnimationUI();
             }
             catch (Exception ex)
             {
                 Debug.LogError($"Error in DrawAnimationSection: {ex.Message}");
-                EditorUtility.DisplayDialog("Error", $"Error in DrawAnimationSection: {ex.Message}", "OK");
+                EditorGUILayout.HelpBox($"Error in DrawAnimationSection: {ex.Message}", MessageType.Error);
             }
         }
 

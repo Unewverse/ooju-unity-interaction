@@ -16,26 +16,26 @@ namespace OojuInteractionPlugin
     public class ObjectAutoAnimator : MonoBehaviour
     {
         private AnimationSettings settings;
-        private AnimationType animationType = AnimationType.None;
-        private RelationalType relationalType = RelationalType.None;
-        private Transform relationalReferenceObject = null;
-        private List<Transform> pathPoints = new List<Transform>();
-        private Vector3 originalPosition;
-        private Quaternion originalRotation;
-        private Vector3 originalScale;
+        public AnimationType animationType = AnimationType.None;
+        public RelationalType relationalType = RelationalType.None;
+        public Transform relationalReferenceObject = null;
+        public List<Transform> pathPoints = new List<Transform>();
+        public Vector3 originalPosition;
+        public Quaternion originalRotation;
+        public Vector3 originalScale;
         private Coroutine currentAnimationCoroutine = null;
 
         // Animation parameters (always referenced from AnimationSettings)
-        public float hoverSpeed { get; set; }
-        public float baseHoverDistance { get; set; }
-        public float wobbleSpeed { get; set; }
-        public float baseWobbleAngle { get; set; }
-        public float spinSpeed { get; set; }
-        public float shakeDuration { get; set; }
-        public float baseShakeMagnitude { get; set; }
-        public float bounceSpeed { get; set; }
-        public float baseBounceHeight { get; set; }
-        public float squashStretchRatio { get; set; }
+        public float hoverSpeed;
+        public float baseHoverDistance;
+        public float wobbleSpeed;
+        public float baseWobbleAngle;
+        public float spinSpeed;
+        public float shakeDuration;
+        public float baseShakeMagnitude;
+        public float bounceSpeed;
+        public float baseBounceHeight;
+        public float squashStretchRatio;
 
         public RelationalType RelationalType
         {
@@ -56,12 +56,46 @@ namespace OojuInteractionPlugin
         private void Awake()
         {
             settings = AnimationSettings.Instance;
+            // Initialize animation parameters from settings
+            hoverSpeed = settings.hoverSpeed;
+            baseHoverDistance = settings.hoverDistance;
+            wobbleSpeed = settings.wobbleSpeed;
+            baseWobbleAngle = settings.wobbleAngle;
+            spinSpeed = settings.spinSpeed;
+            shakeDuration = settings.shakeDuration;
+            baseShakeMagnitude = settings.shakeMagnitude;
+            bounceSpeed = settings.bounceSpeed;
+            baseBounceHeight = settings.bounceHeight;
+            squashStretchRatio = settings.squashRatio;
+        }
+
+        private void OnEnable()
+        {
+            settings = AnimationSettings.Instance;
+            // If animationType is set and in play mode, start animation automatically
+            if (animationType != AnimationType.None && Application.isPlaying)
+            {
+                StartAnimation();
+            }
         }
 
         public void SetAnimationType(AnimationType type)
         {
             animationType = type;
             StopCurrentAnimation();
+            
+            // Update animation parameters from settings
+            hoverSpeed = settings.hoverSpeed;
+            baseHoverDistance = settings.hoverDistance;
+            wobbleSpeed = settings.wobbleSpeed;
+            baseWobbleAngle = settings.wobbleAngle;
+            spinSpeed = settings.spinSpeed;
+            shakeDuration = settings.shakeDuration;
+            baseShakeMagnitude = settings.shakeMagnitude;
+            bounceSpeed = settings.bounceSpeed;
+            baseBounceHeight = settings.bounceHeight;
+            squashStretchRatio = settings.squashRatio;
+
             if (Application.isPlaying)
             {
                 StartAnimation();
@@ -79,6 +113,15 @@ namespace OojuInteractionPlugin
                     break;
                 case AnimationType.Wobble:
                     currentAnimationCoroutine = StartCoroutine(WobbleAnimation());
+                    break;
+                case AnimationType.Spin:
+                    currentAnimationCoroutine = StartCoroutine(SpinAnimation());
+                    break;
+                case AnimationType.Shake:
+                    currentAnimationCoroutine = StartCoroutine(ShakeAnimation());
+                    break;
+                case AnimationType.Bounce:
+                    currentAnimationCoroutine = StartCoroutine(BounceAnimation());
                     break;
                 case AnimationType.Scale:
                     currentAnimationCoroutine = StartCoroutine(ScaleAnimation());
@@ -300,11 +343,58 @@ namespace OojuInteractionPlugin
             }
         }
 
+        private IEnumerator SpinAnimation()
+        {
+            while (true)
+            {
+                transform.Rotate(Vector3.up, spinSpeed * Time.deltaTime, Space.Self);
+                yield return null;
+            }
+        }
+
+        private IEnumerator ShakeAnimation()
+        {
+            float elapsed = 0f;
+            Vector3 originalPos = originalPosition;
+            while (elapsed < shakeDuration)
+            {
+                float x = Random.Range(-1f, 1f) * baseShakeMagnitude;
+                float y = Random.Range(-1f, 1f) * baseShakeMagnitude;
+                float z = Random.Range(-1f, 1f) * baseShakeMagnitude;
+                transform.position = originalPos + new Vector3(x, y, z);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            transform.position = originalPos;
+        }
+
+        private IEnumerator BounceAnimation()
+        {
+            float time = 0f;
+            while (true)
+            {
+                time += Time.deltaTime * bounceSpeed;
+                float yOffset = Mathf.Abs(Mathf.Sin(time)) * baseBounceHeight;
+                float squash = 1f + Mathf.Sin(time) * squashStretchRatio;
+                transform.position = originalPosition + new Vector3(0f, yOffset, 0f);
+                transform.localScale = new Vector3(originalScale.x, originalScale.y * squash, originalScale.z);
+                yield return null;
+            }
+        }
+
         public void SetOriginalTransform(Vector3 pos, Quaternion rot, Vector3 scale)
         {
             originalPosition = pos;
             originalRotation = rot;
             originalScale = scale;
+        }
+
+        // Store the current transform values as the original state
+        private void StoreOriginalTransform()
+        {
+            originalPosition = transform.position;
+            originalRotation = transform.rotation;
+            originalScale = transform.localScale;
         }
     }
 } 

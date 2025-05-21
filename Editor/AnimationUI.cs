@@ -32,27 +32,53 @@ namespace OojuInteractionPlugin
 
         public void DrawAnimationUI()
         {
+            // Null check
+            if (settings == null)
+            {
+                EditorGUILayout.HelpBox("AnimationSettings is not initialized.", MessageType.Error);
+                return;
+            }
+            if (viewModel == null)
+            {
+                EditorGUILayout.HelpBox("Animation ViewModel is not initialized.", MessageType.Error);
+                return;
+            }
+            if (viewModel.PathPoints == null)
+            {
+                viewModel.PathPoints = new List<GameObject>();
+            }
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
-            GUILayout.Space(5);
-            EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
-            GUILayout.Space(10);
-
-            EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
-            viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" });
-            GUILayout.Space(10);
-
-            if (viewModel.SelectedCategory == AnimationCategory.Independent)
+            try
             {
-                DrawIndependentAnimationUI();
-            }
-            else
-            {
-                DrawRelationalAnimationUI();
-            }
+                GUILayout.Space(10);
+                EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
+                GUILayout.Space(5);
+                EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
+                GUILayout.Space(10);
 
-            EditorGUILayout.EndVertical();
+                EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
+                viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" });
+                GUILayout.Space(10);
+
+                if (viewModel.SelectedCategory == AnimationCategory.Independent)
+                {
+                    DrawIndependentAnimationUI();
+                }
+                else
+                {
+                    DrawRelationalAnimationUI();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"Error in DrawAnimationUI: {ex.Message}");
+                EditorGUILayout.HelpBox($"Error in DrawAnimationUI: {ex.Message}", MessageType.Error);
+            }
+            finally
+            {
+                EditorGUILayout.EndVertical();
+            }
         }
 
         private void DrawIndependentAnimationUI()
@@ -86,6 +112,15 @@ namespace OojuInteractionPlugin
                 case AnimationType.Wobble:
                     DrawWobbleParameters();
                     break;
+                case AnimationType.Spin:
+                    DrawSpinParameters();
+                    break;
+                case AnimationType.Shake:
+                    DrawShakeParameters();
+                    break;
+                case AnimationType.Bounce:
+                    DrawBounceParameters();
+                    break;
                 case AnimationType.Scale:
                     DrawScaleParameters();
                     break;
@@ -101,9 +136,25 @@ namespace OojuInteractionPlugin
             settings.wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", settings.wobbleSpeed);
             settings.wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", settings.wobbleAngle);
         }
+        private void DrawSpinParameters()
+        {
+            settings.spinSpeed = EditorGUILayout.FloatField("Spin Speed", settings.spinSpeed);
+        }
+        private void DrawShakeParameters()
+        {
+            settings.shakeDuration = EditorGUILayout.FloatField("Shake Duration", settings.shakeDuration);
+            settings.shakeMagnitude = EditorGUILayout.FloatField("Shake Magnitude", settings.shakeMagnitude);
+        }
+        private void DrawBounceParameters()
+        {
+            settings.bounceSpeed = EditorGUILayout.FloatField("Bounce Speed", settings.bounceSpeed);
+            settings.bounceHeight = EditorGUILayout.FloatField("Bounce Height", settings.bounceHeight);
+            settings.squashRatio = EditorGUILayout.FloatField("Squash Ratio", settings.squashRatio);
+        }
         private void DrawScaleParameters()
         {
-            // Add scale parameters here if needed
+            settings.bounceSpeed = EditorGUILayout.FloatField("Scale Speed", settings.bounceSpeed);
+            settings.bounceHeight = EditorGUILayout.FloatField("Scale Amount", settings.bounceHeight);
         }
 
         private void DrawApplyAnimationButton()
@@ -272,7 +323,17 @@ namespace OojuInteractionPlugin
             Undo.RecordObject(animator, "Set Animation");
 
             animator.SetOriginalTransform(obj.transform.position, obj.transform.rotation, obj.transform.localScale);
-            animator.SetAnimationType(viewModel.SelectedAnimationType);
+            animator.animationType = viewModel.SelectedAnimationType;
+            animator.hoverSpeed = settings.hoverSpeed;
+            animator.baseHoverDistance = settings.hoverDistance;
+            animator.wobbleSpeed = settings.wobbleSpeed;
+            animator.baseWobbleAngle = settings.wobbleAngle;
+            animator.spinSpeed = settings.spinSpeed;
+            animator.shakeDuration = settings.shakeDuration;
+            animator.baseShakeMagnitude = settings.shakeMagnitude;
+            animator.bounceSpeed = settings.bounceSpeed;
+            animator.baseBounceHeight = settings.bounceHeight;
+            animator.squashStretchRatio = settings.squashRatio;
 
             EditorUtility.SetDirty(animator);
             if (Application.isPlaying)
