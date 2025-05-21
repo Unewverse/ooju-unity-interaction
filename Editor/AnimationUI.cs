@@ -1,16 +1,13 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using OojuInteractionPlugin;
 
 namespace OojuInteractionPlugin
 {
     public class AnimationUI
     {
         private AnimationSettings settings;
-        private AnimationType selectedAnimationType = AnimationType.None;
-        private AnimationCategory selectedCategory = AnimationCategory.Independent;
-        private RelationalAnimationType selectedRelationalType = RelationalAnimationType.Orbit;
-        private GameObject referenceObject = null;
         private List<GameObject> pathPoints = new List<GameObject>();
 
         // ViewModel for animation parameters (for future testability)
@@ -31,27 +28,53 @@ namespace OojuInteractionPlugin
 
         public void DrawAnimationUI()
         {
+            // Null check
+            if (settings == null)
+            {
+                EditorGUILayout.HelpBox("AnimationSettings is not initialized.", MessageType.Error);
+                return;
+            }
+            if (viewModel == null)
+            {
+                EditorGUILayout.HelpBox("Animation ViewModel is not initialized.", MessageType.Error);
+                return;
+            }
+            if (viewModel.PathPoints == null)
+            {
+                viewModel.PathPoints = new List<GameObject>();
+            }
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            GUILayout.Space(10);
-            EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
-            GUILayout.Space(5);
-            EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
-            GUILayout.Space(10);
-
-            EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
-            viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" });
-            GUILayout.Space(10);
-
-            if (viewModel.SelectedCategory == AnimationCategory.Independent)
+            try
             {
-                DrawIndependentAnimationUI();
-            }
-            else
-            {
-                DrawRelationalAnimationUI();
-            }
+                GUILayout.Space(10);
+                EditorGUILayout.LabelField("Animation", EditorStyles.boldLabel);
+                GUILayout.Space(5);
+                EditorGUILayout.LabelField("Add animations to selected objects", EditorStyles.miniLabel);
+                GUILayout.Space(10);
 
-            EditorGUILayout.EndVertical();
+                EditorGUILayout.LabelField("Animation Type Category", EditorStyles.boldLabel);
+                viewModel.SelectedCategory = (AnimationCategory)GUILayout.Toolbar((int)viewModel.SelectedCategory, new string[] { "Independent", "Relational" });
+                GUILayout.Space(10);
+
+                if (viewModel.SelectedCategory == AnimationCategory.Independent)
+                {
+                    DrawIndependentAnimationUI();
+                }
+                else
+                {
+                    DrawRelationalAnimationUI();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"Error in DrawAnimationUI: {ex.Message}");
+                EditorGUILayout.HelpBox($"Error in DrawAnimationUI: {ex.Message}", MessageType.Error);
+            }
+            finally
+            {
+                EditorGUILayout.EndVertical();
+            }
         }
 
         private void DrawIndependentAnimationUI()
@@ -85,6 +108,15 @@ namespace OojuInteractionPlugin
                 case AnimationType.Wobble:
                     DrawWobbleParameters();
                     break;
+                case AnimationType.Spin:
+                    DrawSpinParameters();
+                    break;
+                case AnimationType.Shake:
+                    DrawShakeParameters();
+                    break;
+                case AnimationType.Bounce:
+                    DrawBounceParameters();
+                    break;
                 case AnimationType.Scale:
                     DrawScaleParameters();
                     break;
@@ -100,9 +132,25 @@ namespace OojuInteractionPlugin
             settings.wobbleSpeed = EditorGUILayout.FloatField("Wobble Speed", settings.wobbleSpeed);
             settings.wobbleAngle = EditorGUILayout.FloatField("Wobble Angle", settings.wobbleAngle);
         }
+        private void DrawSpinParameters()
+        {
+            settings.spinSpeed = EditorGUILayout.FloatField("Spin Speed", settings.spinSpeed);
+        }
+        private void DrawShakeParameters()
+        {
+            settings.shakeDuration = EditorGUILayout.FloatField("Shake Duration", settings.shakeDuration);
+            settings.shakeMagnitude = EditorGUILayout.FloatField("Shake Magnitude", settings.shakeMagnitude);
+        }
+        private void DrawBounceParameters()
+        {
+            settings.bounceSpeed = EditorGUILayout.FloatField("Bounce Speed", settings.bounceSpeed);
+            settings.bounceHeight = EditorGUILayout.FloatField("Bounce Height", settings.bounceHeight);
+            settings.squashRatio = EditorGUILayout.FloatField("Squash Ratio", settings.squashRatio);
+        }
         private void DrawScaleParameters()
         {
-            // Add scale parameters here if needed
+            settings.bounceSpeed = EditorGUILayout.FloatField("Scale Speed", settings.bounceSpeed);
+            settings.bounceHeight = EditorGUILayout.FloatField("Scale Amount", settings.bounceHeight);
         }
 
         private void DrawApplyAnimationButton()
@@ -158,20 +206,17 @@ namespace OojuInteractionPlugin
             viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Reference Object", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.orbitRadius = EditorGUILayout.FloatField("Orbit Radius", settings.orbitRadius);
             settings.orbitSpeed = EditorGUILayout.FloatField("Orbit Speed", settings.orbitSpeed);
-            settings.orbitDuration = EditorGUILayout.FloatField("Duration", settings.orbitDuration);
         }
         private void DrawLookAtParameters()
         {
             viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.lookAtSpeed = EditorGUILayout.FloatField("Look Speed", settings.lookAtSpeed);
-            settings.lookAtDuration = EditorGUILayout.FloatField("Duration", settings.lookAtDuration);
         }
         private void DrawFollowParameters()
         {
             viewModel.ReferenceObject = (GameObject)EditorGUILayout.ObjectField("Target Object", viewModel.ReferenceObject, typeof(GameObject), true);
             settings.followSpeed = EditorGUILayout.FloatField("Follow Speed", settings.followSpeed);
             settings.followStopDistance = EditorGUILayout.FloatField("Stop Distance", settings.followStopDistance);
-            settings.followDuration = EditorGUILayout.FloatField("Duration", settings.followDuration);
         }
         private void DrawMoveAlongPathParameters()
         {
@@ -270,7 +315,18 @@ namespace OojuInteractionPlugin
             var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
             Undo.RecordObject(animator, "Set Animation");
 
-            animator.SetAnimationType(viewModel.SelectedAnimationType);
+            animator.SetOriginalTransform(obj.transform.position, obj.transform.rotation, obj.transform.localScale);
+            animator.animationType = viewModel.SelectedAnimationType;
+            animator.hoverSpeed = settings.hoverSpeed;
+            animator.baseHoverDistance = settings.hoverDistance;
+            animator.wobbleSpeed = settings.wobbleSpeed;
+            animator.baseWobbleAngle = settings.wobbleAngle;
+            animator.spinSpeed = settings.spinSpeed;
+            animator.shakeDuration = settings.shakeDuration;
+            animator.baseShakeMagnitude = settings.shakeMagnitude;
+            animator.bounceSpeed = settings.bounceSpeed;
+            animator.baseBounceHeight = settings.bounceHeight;
+            animator.squashStretchRatio = settings.squashRatio;
 
             EditorUtility.SetDirty(animator);
             if (Application.isPlaying)
@@ -292,12 +348,45 @@ namespace OojuInteractionPlugin
                 var animator = Undo.AddComponent<ObjectAutoAnimator>(obj);
                 Undo.RecordObject(animator, "Set Relational Animation");
 
+                // Store original transform before starting relational animation
+                animator.SetOriginalTransform(obj.transform.position, obj.transform.rotation, obj.transform.localScale);
+
+                // Assign all animation parameters from settings
+                animator.hoverSpeed = settings.hoverSpeed;
+                animator.baseHoverDistance = settings.hoverDistance;
+                animator.wobbleSpeed = settings.wobbleSpeed;
+                animator.baseWobbleAngle = settings.wobbleAngle;
+                animator.spinSpeed = settings.spinSpeed;
+                animator.shakeDuration = settings.shakeDuration;
+                animator.baseShakeMagnitude = settings.shakeMagnitude;
+                animator.bounceSpeed = settings.bounceSpeed;
+                animator.baseBounceHeight = settings.bounceHeight;
+                animator.squashStretchRatio = settings.squashRatio;
+                animator.orbitRadius = settings.orbitRadius;
+                animator.orbitSpeed = settings.orbitSpeed;
+                animator.lookAtSpeed = settings.lookAtSpeed;
+                animator.followSpeed = settings.followSpeed;
+                animator.followStopDistance = settings.followStopDistance;
+                animator.pathMoveSpeed = settings.pathMoveSpeed;
+                animator.snapRotation = settings.snapRotation;
+
+                // Assign relational type and reference object
+                animator.relationalType = MapRelationalAnimationTypeToRelationalType(viewModel.SelectedRelationalType);
+                animator.relationalReferenceObject = viewModel.ReferenceObject != null ? viewModel.ReferenceObject.transform : null;
+                animator.pathPoints = viewModel.PathPoints != null ? viewModel.PathPoints.FindAll(p => p != null).ConvertAll(p => p.transform) : new List<Transform>();
+
                 ApplyRelationalAnimationToObject(animator);
+                EditorUtility.SetDirty(animator);
             }
         }
 
         private void ApplyRelationalAnimationToObject(ObjectAutoAnimator animator)
         {
+            if (!Application.isPlaying)
+            {
+                // Do not start relational animation in edit mode
+                return;
+            }
             switch (viewModel.SelectedRelationalType)
             {
                 case RelationalAnimationType.Orbit:
@@ -331,6 +420,20 @@ namespace OojuInteractionPlugin
                         animator.SnapToObject(viewModel.ReferenceObject.transform, settings.snapRotation);
                     }
                     break;
+            }
+        }
+
+        // Map RelationalAnimationType to RelationalType
+        private RelationalType MapRelationalAnimationTypeToRelationalType(RelationalAnimationType type)
+        {
+            switch (type)
+            {
+                case RelationalAnimationType.Orbit: return RelationalType.Orbit;
+                case RelationalAnimationType.LookAt: return RelationalType.LookAt;
+                case RelationalAnimationType.Follow: return RelationalType.Follow;
+                case RelationalAnimationType.MoveAlongPath: return RelationalType.MoveAlongPath;
+                case RelationalAnimationType.SnapToObject: return RelationalType.SnapToObject;
+                default: return RelationalType.None;
             }
         }
     }

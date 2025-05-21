@@ -88,6 +88,10 @@ namespace OojuInteractionPlugin
         {
             try
             {
+                // Try to get the GameObject by name for more context (shape/type)
+                GameObject obj = GameObject.Find(objectName);
+                string objectType = obj != null ? obj.GetType().Name : "Unknown";
+                string objectShape = obj != null && obj.GetComponent<MeshFilter>() != null ? obj.GetComponent<MeshFilter>().sharedMesh != null ? obj.GetComponent<MeshFilter>().sharedMesh.name : "UnknownMesh" : "UnknownShape";
                 var requestData = new
                 {
                     model = SUGGESTION_MODEL,
@@ -96,13 +100,10 @@ namespace OojuInteractionPlugin
                         new
                         {
                             role = "user",
-                            content = $"Scene Context: \"{sceneDescription}\"\n" +
-                                    $"Object Name: \"{objectName}\"\n" +
-                                    "Task: Suggest 3 plausible, short, action-oriented interaction sentences a player could perform with this object in a game context. " +
-                                    "Start each suggestion on a new line. If the object seems purely decorative, static, background scenery, or non-interactive, respond ONLY with the word: NONE"
+                            content = $"Given the following Unity scene description and the selected object, suggest 3 realistic, Unity-implementable interactions for the object. Use the object's name, its appearance/type (type: {objectType}, mesh: {objectShape}), and the scene context. Only suggest interactions that make sense for this object in Unity. If the object is not interactive, respond ONLY with the word: NONE.\nScene Description: {sceneDescription}\nObject Name: {objectName}"
                         }
                     },
-                    max_tokens = 150,
+                    max_tokens = 180,
                     temperature = 0.6
                 };
 
@@ -230,7 +231,7 @@ namespace OojuInteractionPlugin
                             role = "user",
                             content = new object[]
                             {
-                                new { type = "text", text = "Please analyze this Unity scene and provide a brief description. Focus on the main objects and their relationships." },
+                                new { type = "text", text = "Please analyze this Unity scene and provide a very brief, concise description (max 2-3 sentences). Focus only on the main objects and their arrangement. Exclude unnecessary details, background, or decorative elements." },
                                 new { type = "image_url", image_url = new { url = $"data:image/png;base64,{base64Image}" } }
                             }
                         }
