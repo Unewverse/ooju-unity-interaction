@@ -78,7 +78,7 @@ namespace OojuInteractionPlugin
                     DrawInteractionToolsTab(contentWidth, buttonWidth);
                     break;
                 case InteractionTab.Settings:
-                    DrawCAIGSettingsInnerTab();
+                    DrawSettingsTab();
                     break;
             }
         }
@@ -612,8 +612,8 @@ namespace OojuInteractionPlugin
             return name;
         }
 
-        // CAIG Settings internal tab UI (minimal skeleton)
-        private void DrawCAIGSettingsInnerTab()
+        // Settings internal tab UI (minimal skeleton)
+        private void DrawSettingsTab()
         {
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("OpenAI API Settings", EditorStyles.boldLabel);

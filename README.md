@@ -1,42 +1,128 @@
 # OOJU Interaction Unity Package
 
 ## Overview
-This package provides a set of tools and editor extensions for easily adding interactive behaviors and AI-powered suggestions to your Unity projects. It includes:
-- Editor windows for scene analysis and interaction script generation
-- Animation utilities for common object behaviors (hover, wobble, etc.)
-- ScriptableObject-based settings and animation presets
-- Integration with OpenAI for scene description and interaction suggestions
+OOJU Interaction is a powerful Unity Editor extension package that enhances your development workflow with AI-powered scene analysis and interaction generation capabilities. This package provides a comprehensive set of tools for creating interactive behaviors and animations in your Unity projects.
+
+## Key Features
+- **AI-Powered Scene Analysis**
+  - Generate detailed scene descriptions using OpenAI
+  - Get intelligent interaction suggestions for selected objects
+  - Convert natural language descriptions into Unity C# scripts
+  - Automatic object detection and script application
+
+- **Animation System**
+  - Built-in animation types (hover, wobble, etc.)
+  - Customizable animation parameters
+  - Animation preset system for reusable configurations
+  - Real-time animation preview and testing
+
+- **Editor Integration**
+  - Intuitive Unity Editor window interface
+  - Drag-and-drop functionality
+  - Real-time feedback and suggestions
+  - Seamless integration with Unity's existing tools
+
+## Package Structure
+```
+Assets/OOJUInteraction/ooju-unity-interaction/
+├── Editor/
+│   ├── OOJUInteractionWindow.cs      # Main editor window
+│   ├── AnimationUI.cs                # Animation interface
+│   ├── ObjectAutoAnimator.cs         # Animation controller
+│   ├── CAIGDescriptor.cs            # AI integration
+│   ├── CAIGSettings.cs              # Settings management
+│   └── UIStyles.cs                  # UI customization
+├── Runtime/
+│   └── OOJUInteraction.Runtime.asmdef
+└── package.json
+```
 
 ## Installation
-1. Copy the `OOJUInteraction` folder into your project's `Assets` directory.
-2. Ensure all dependencies are installed (see below).
-3. Open Unity. The package will be available in the Editor menu under `OOJU`.
+1. **Package Manager Installation**
+   - Open Unity Package Manager
+   - Click the '+' button
+   - Select "Add package from git URL"
+   - Enter: `https://github.com/Unewverse/ooju-unity-interaction.git`
 
-## Main Features
-- **OOJU Interaction Window**: Go to `OOJU > Interaction` in the Unity Editor menu. Use this window to:
-  - Generate scene descriptions using OpenAI
-  - Get interaction suggestions for selected objects
-  - Generate and apply C# interaction scripts from natural language
-  - Apply common animations (hover, wobble, etc.) to objects
-- **Animation Presets**: Create and manage reusable animation parameter sets using `AnimationPreset` ScriptableObjects.
-- **Settings**: Store API keys and default animation parameters using the `OISettings` ScriptableObject.
-
-## How to Use
-1. **Scene Description & Suggestions**: Open the Interaction window, click `Generate Scene Description`, and follow the prompts.
-2. **Sentence-to-Interaction**: Enter a natural language description and generate a Unity C# script. The script will be saved and instructions shown in the window.
-3. **Apply Animations**: Select objects in the scene, choose an animation type and parameters, and click `Apply Animation`.
-4. **Animation Presets**: Create a new `AnimationPreset` asset via `Create > OOJU > Animation Preset` and assign it in the relevant UI.
-
-## Extending & Customizing
-- **Add New Animation Types**: Extend the `AnimationType` enum and implement the corresponding logic in `ObjectAutoAnimator` and `AnimationUI`.
-- **Custom Editor Styles**: Modify or extend `UIStyles.cs` for custom editor UI appearance.
-- **Settings**: Add new fields to `OISettings` and update the editor UI as needed.
+2. **Manual Installation**
+   - Download the package
+   - Copy the `OOJUInteraction` folder into your project's `Assets` directory
+   - Ensure all dependencies are installed
 
 ## Dependencies
-- **Newtonsoft.Json**: Required for OpenAI API integration. Install via Unity Package Manager (`com.unity.nuget.newtonsoft-json`) or from [GitHub](https://github.com/JamesNK/Newtonsoft.Json).
-- **UnityEditor**: All editor scripts require Unity Editor.
-- **UnityEngine**: Core Unity engine.
+- Unity 2021.3 or later
+- Newtonsoft.Json (com.unity.nuget.newtonsoft-json: 3.0.2)
+- OpenAI API key (for AI features)
 
-## Support & Contact
-For questions, bug reports, or feature requests, please contact the OOJU team or open an issue on the repository where this package is hosted.
+## Getting Started
+1. **Setup**
+   - Open the OOJU Interaction window (OOJU > Interaction)
+   - Configure your OpenAI API key in the **Settings** tab
+   - Create animation presets if needed
+
+2. **Scene Analysis**
+   - Select objects in your scene
+   - Click "Generate Scene Description"
+   - Review the generated description and suggestions
+
+3. **Creating Interactions**
+   - Enter a natural language description of the desired interaction
+   - Click "Generate Interaction"
+   - Follow the instructions to apply the generated script
+
+4. **Applying Animations**
+   - Select target objects
+   - Choose animation type and parameters
+   - Click "Apply Animation"
+   - Adjust parameters in real-time
+
+## Advanced Usage
+### Custom Animation Types
+1. Extend the `AnimationType` enum
+2. Implement corresponding logic in `ObjectAutoAnimator`
+3. Update `AnimationUI` for parameter controls
+
+### Custom Editor Styles
+- Modify `UIStyles.cs` to customize the editor appearance
+- Add new UI elements as needed
+
+### Settings Management
+- Extend `CAIGSettings.cs` for additional configuration options
+- Create custom settings assets using the ScriptableObject system
+
+## Best Practices
+1. **Scene Organization**
+   - Keep related objects grouped together
+   - Use clear, descriptive names for GameObjects
+   - Maintain a clean hierarchy
+
+2. **Animation Usage**
+   - Create and save animation presets for common behaviors
+   - Test animations in Play mode before finalizing
+   - Use appropriate animation types for different scenarios
+
+3. **Script Generation**
+   - Provide clear, specific descriptions
+   - Review generated scripts before applying
+   - Test interactions thoroughly
+
+## Troubleshooting
+- **API Key Issues**: Ensure your OpenAI API key is correctly set in the Settings tab
+- **Script Generation Failures**: Check your internet connection and API key validity
+- **Animation Problems**: Verify object components and hierarchy structure
+
+## Support & Contributing
+- **Documentation**: [GitHub Wiki](https://github.com/Unewverse/ooju-unity-interaction/wiki)
+- **Issues**: [GitHub Issues](https://github.com/Unewverse/ooju-unity-interaction/issues)
+- **Contact**: contact@ooju.world
+
+## License
+This package is licensed under the MIT License. See the LICENSE file for details.
+
+## Version History
+- 0.1.0: Initial release
+  - Basic scene analysis
+  - Animation system
+  - Script generation
+  - Editor integration
 

@@ -25,8 +25,8 @@ namespace OojuInteractionPlugin
                 string apiKey = OISettings.Instance.ApiKey;
                 if (string.IsNullOrEmpty(apiKey))
                 {
-                    Debug.LogError("OpenAI API Key is not set. Please set it in the CAIG Settings window.");
-                    return "Error: API Key is not set. Please set it in the CAIG Settings window.";
+                    Debug.LogError("OpenAI API Key is not set. Please set it in the Settings window.");
+                    return "Error: API Key is not set. Please set it in the Settings window.";
                 }
 
                 string screenshotPath = CaptureSceneScreenshot();
@@ -52,7 +52,7 @@ namespace OojuInteractionPlugin
                 string apiKey = OISettings.Instance.ApiKey;
                 if (string.IsNullOrEmpty(apiKey))
                 {
-                    Debug.LogError("OpenAI API Key is not set. Please set it in the CAIG Settings window.");
+                    Debug.LogError("OpenAI API Key is not set. Please set it in the Settings window.");
                     return null;
                 }
 
@@ -261,7 +261,7 @@ namespace OojuInteractionPlugin
                         string errorMessage = $"OpenAI API Error: {request.error}";
                         if (request.responseCode == 401)
                         {
-                            errorMessage = "Invalid API Key. Please check your API Key in the CAIG Settings window.";
+                            errorMessage = "Invalid API Key. Please check your API Key in the Settings window.";
                         }
                         else if (request.responseCode == 404)
                         {
@@ -323,7 +323,7 @@ namespace OojuInteractionPlugin
                         string errorMessage = $"OpenAI API Error: {request.error}";
                         if (request.responseCode == 401)
                         {
-                            errorMessage = "Invalid API Key. Please check your API Key in the CAIG Settings window.";
+                            errorMessage = "Invalid API Key. Please check your API Key in the Settings window.";
                         }
                         else if (request.responseCode == 404)
                         {
