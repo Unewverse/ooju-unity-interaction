@@ -40,6 +40,12 @@ namespace OojuInteractionPlugin
 
         private Vector2 lastScriptSummaryScroll = Vector2.zero;
 
+        // Stores user input for each object
+        private Dictionary<string, string> userObjectInput = new Dictionary<string, string>();
+
+        // Stores the last generated class name for assignment
+        private string lastGeneratedClassName = "";
+
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
         {
@@ -108,23 +114,23 @@ namespace OojuInteractionPlugin
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
-            EditorGUILayout.LabelField("Scene Description & Analysis", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Suggest Interactions", EditorStyles.boldLabel);
             GUILayout.Space(5);
-            EditorGUILayout.LabelField("Generate descriptions and interaction suggestions", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("Suggest appropriate interactions for selected objects based on the scene context.", EditorStyles.miniLabel);
             GUILayout.Space(10);
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             EditorGUI.BeginDisabledGroup(isGeneratingDescription);
-            if (GUILayout.Button(new GUIContent("Generate Scene Description", "Analyze and describe the current scene"), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
+            if (GUILayout.Button(new GUIContent("Suggest Interactions", "Suggest appropriate interactions for selected objects based on the scene context."), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
             {
                 try
                 {
-                    GenerateDescriptionInternal();
+                    AnalyzeSceneAndSuggestInteractions();
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"Error in GenerateDescriptionInternal: {ex.Message}");
-                    EditorUtility.DisplayDialog("Error", $"Error in GenerateDescriptionInternal: {ex.Message}", "OK");
+                    Debug.LogError($"Error in AnalyzeSceneAndSuggestInteractions: {ex.Message}");
+                    EditorUtility.DisplayDialog("Error", $"Error in AnalyzeSceneAndSuggestInteractions: {ex.Message}", "OK");
                 }
             }
             EditorGUI.EndDisabledGroup();
@@ -132,75 +138,100 @@ namespace OojuInteractionPlugin
             EditorGUILayout.EndHorizontal();
             if (!string.IsNullOrEmpty(sceneDescription))
             {
-                GUILayout.Space(10);
-                EditorGUILayout.LabelField("Current Scene Description:", EditorStyles.boldLabel);
-                descriptionScrollPosition = EditorGUILayout.BeginScrollView(descriptionScrollPosition, GUILayout.Height(100), GUILayout.ExpandWidth(true));
-                EditorGUILayout.TextArea(sceneDescription, EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
-                EditorGUILayout.EndScrollView();
-                GUILayout.Space(5);
+                GUILayout.Space(2);
+                // 더 얇은 구분선
+                Rect rect = EditorGUILayout.GetControlRect(false, 1);
+                EditorGUI.DrawRect(rect, new Color(0.3f, 0.3f, 0.3f, 1f));
+                GUILayout.Space(2);
+            }
+            if (interactionSuggestions != null && interactionSuggestions.Count > 0)
+            {
+                GUILayout.Space(4);
+                EditorGUILayout.LabelField("Interaction Suggestions:", EditorStyles.boldLabel);
+                bool hasAnyValid = false;
+                foreach (var kvp in interactionSuggestions)
+                {
+                    string objName = kvp.Key;
+                    EditorGUILayout.LabelField($"- {objName}", EditorStyles.miniBoldLabel);
+                    bool validFound = false;
+                    foreach (var suggestion in kvp.Value)
+                    {
+                        string cleanSuggestion = suggestion;
+                        if (!string.IsNullOrWhiteSpace(cleanSuggestion) && cleanSuggestion != "NONE" && cleanSuggestion != "ERROR" && !cleanSuggestion.Contains("No valid suggestions found"))
+                        {
+                            // Remove bold markdown (**) from suggestion
+                            cleanSuggestion = System.Text.RegularExpressions.Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
+                            // Show suggestion as a word-wrapped label with max width
+                            EditorGUILayout.LabelField(cleanSuggestion, EditorStyles.wordWrappedLabel, GUILayout.MaxWidth(400));
+                            // Place 'Apply' button below the label
+                            if (GUILayout.Button("Apply", EditorStyles.miniButton, GUILayout.Width(60)))
+                            {
+                                userInteractionInput = cleanSuggestion;
+                            }
+                            GUILayout.Space(5); // Add some space between suggestions
+                            validFound = true;
+                            hasAnyValid = true;
+                        }
+                    }
+                    if (!validFound)
+                    {
+                        // Show as a warning message
+                        EditorGUILayout.HelpBox("No valid suggestions found for this object. Please provide a description and desired interaction for this object below.", MessageType.Warning);
+                        // User input field for each object
+                        if (!userObjectInput.ContainsKey(objName)) userObjectInput[objName] = "";
+                        userObjectInput[objName] = EditorGUILayout.TextArea(userObjectInput[objName], GUILayout.Height(40), GUILayout.ExpandWidth(true));
+                        EditorGUILayout.LabelField("This may help if the object is not mentioned in the scene description or is not relevant to the current scene context.", EditorStyles.wordWrappedMiniLabel);
+                    }
+                }
+                if (!hasAnyValid)
+                {
+                    // Do not show duplicate message; warning above is sufficient
+                }
+                // Move the button below Interaction Suggestions
+                GUILayout.Space(8);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
                 EditorGUI.BeginDisabledGroup(isGeneratingDescription);
-                if (GUILayout.Button(new GUIContent("Generate Interaction Suggestions", "Generate realistic, Unity-implementable interaction ideas based on the current scene description and selected objects."), GUILayout.Width(buttonWidth), GUILayout.Height(25)))
+                if (GUILayout.Button(new GUIContent("Regenerate Interaction Suggestions", "Generate interaction suggestions for the currently selected objects based on the existing scene description and your input."), GUILayout.Width(buttonWidth), GUILayout.Height(22)))
                 {
                     try
                     {
-                        GenerateSuggestionsInternal();
+                        RegenerateInteractionSuggestionsOnly();
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogError($"Error in GenerateSuggestionsInternal: {ex.Message}");
-                        EditorUtility.DisplayDialog("Error", $"Error in GenerateSuggestionsInternal: {ex.Message}", "OK");
+                        Debug.LogError($"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}");
+                        EditorUtility.DisplayDialog("Error", $"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}", "OK");
                     }
                 }
                 EditorGUI.EndDisabledGroup();
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
-                if (interactionSuggestions != null && interactionSuggestions.Count > 0)
+            }
+            else if (!string.IsNullOrEmpty(sceneDescription))
+            {
+                GUILayout.Space(4);
+                EditorGUILayout.LabelField("No interaction suggestions available.", EditorStyles.wordWrappedMiniLabel);
+                // Move the button below Interaction Suggestions (even when there are no suggestions)
+                GUILayout.Space(8);
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                EditorGUI.BeginDisabledGroup(isGeneratingDescription);
+                if (GUILayout.Button(new GUIContent("Regenerate Interaction Suggestions", "Generate interaction suggestions for the currently selected objects based on the existing scene description and your input."), GUILayout.Width(buttonWidth), GUILayout.Height(22)))
                 {
-                    GUILayout.Space(10);
-                    EditorGUILayout.LabelField("Interaction Suggestions:", EditorStyles.boldLabel);
-                    bool hasAnyValid = false;
-                    foreach (var kvp in interactionSuggestions)
+                    try
                     {
-                        EditorGUILayout.LabelField($"- {kvp.Key}", EditorStyles.miniBoldLabel);
-                        bool validFound = false;
-                        foreach (var suggestion in kvp.Value)
-                        {
-                            string cleanSuggestion = suggestion;
-                            if (!string.IsNullOrWhiteSpace(cleanSuggestion) && cleanSuggestion != "NONE" && cleanSuggestion != "ERROR")
-                            {
-                                // Remove bold markdown (**) from suggestion
-                                cleanSuggestion = System.Text.RegularExpressions.Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
-                                // Show suggestion as a word-wrapped label with max width
-                                EditorGUILayout.LabelField(cleanSuggestion, EditorStyles.wordWrappedLabel, GUILayout.MaxWidth(400));
-                                // Place 'Apply' button below the label
-                                if (GUILayout.Button("Apply", EditorStyles.miniButton, GUILayout.Width(60)))
-                                {
-                                    userInteractionInput = cleanSuggestion;
-                                }
-                                GUILayout.Space(5); // Add some space between suggestions
-                                validFound = true;
-                                hasAnyValid = true;
-                            }
-                        }
-                        if (!validFound)
-                        {
-                            // Show message if no valid suggestions are found for this object
-                            EditorGUILayout.LabelField("    (No valid suggestions found for this object.)", EditorStyles.wordWrappedMiniLabel);
-                            EditorGUILayout.LabelField("    This may happen if the object is not mentioned in the scene description or is not relevant to the current scene context.", EditorStyles.wordWrappedMiniLabel);
-                        }
+                        RegenerateInteractionSuggestionsOnly();
                     }
-                    if (!hasAnyValid)
+                    catch (Exception ex)
                     {
-                        EditorGUILayout.LabelField("No valid interaction suggestions found.", EditorStyles.wordWrappedMiniLabel);
+                        Debug.LogError($"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}");
+                        EditorUtility.DisplayDialog("Error", $"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}", "OK");
                     }
                 }
-                else
-                {
-                    GUILayout.Space(10);
-                    EditorGUILayout.LabelField("No interaction suggestions available.", EditorStyles.wordWrappedMiniLabel);
-                }
+                EditorGUI.EndDisabledGroup();
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
             }
             GUILayout.Space(10);
             EditorGUILayout.EndVertical();
@@ -216,7 +247,9 @@ namespace OojuInteractionPlugin
             EditorGUILayout.LabelField("Describe the interaction you want to create as a single sentence", EditorStyles.miniLabel);
             GUILayout.Space(10);
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.ExpandWidth(true));
-            userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, GUILayout.Height(60), GUILayout.ExpandWidth(true));
+            // Use a word-wrapped text area with a max width to prevent window stretching
+            var wordWrapStyle = new GUIStyle(EditorStyles.textField) { wordWrap = true };
+            userInteractionInput = EditorGUILayout.TextArea(userInteractionInput, wordWrapStyle, GUILayout.Height(60), GUILayout.ExpandWidth(true), GUILayout.MaxWidth(800));
             EditorGUILayout.EndVertical();
             GUILayout.Space(10);
             EditorGUILayout.BeginHorizontal();
@@ -236,18 +269,21 @@ namespace OojuInteractionPlugin
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
             GUILayout.Space(10);
+            // Show Assign button if a script was generated
+            if (!string.IsNullOrEmpty(lastGeneratedClassName) && lastGeneratedClassName != "No code block found.")
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("Assign Script to Selected Object(s)", GUILayout.Width(buttonWidth), GUILayout.Height(28)))
+                {
+                    AssignScriptToSelectedObjects();
+                }
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+                GUILayout.Space(10);
+            }
             if (!string.IsNullOrEmpty(sentenceToInteractionResult))
             {
-                GUILayout.Space(10);
-                EditorGUILayout.LabelField("How to Apply:", EditorStyles.boldLabel);
-                lastScriptSummaryScroll = EditorGUILayout.BeginScrollView(lastScriptSummaryScroll, GUILayout.Height(100), GUILayout.ExpandWidth(true));
-                EditorGUILayout.TextArea(
-                    "1. The generated script is saved in: Assets/OOJU/Interaction/Generated/\n" +
-                    "2. In the Unity Editor, select the GameObject you want to apply the script to.\n" +
-                    "3. In the Inspector window, click 'Add Component' and search for the script by name, or drag and drop the script from the Project window onto the GameObject.\n" +
-                    "4. If the script requires a target object (e.g., another GameObject), assign it by dragging the desired object from the Hierarchy to the corresponding field in the Inspector.",
-                    EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
-                EditorGUILayout.EndScrollView();
                 if (!string.IsNullOrEmpty(lastGeneratedScriptPath))
                 {
                     EditorGUILayout.HelpBox($"Generated script saved to: {lastGeneratedScriptPath}", MessageType.Info);
@@ -294,13 +330,13 @@ namespace OojuInteractionPlugin
             }
         }
 
-        // Optimized async method for generating scene description
-        private async void GenerateDescriptionInternal()
+        // New method: Analyze scene and suggest interactions in one step
+        private async void AnalyzeSceneAndSuggestInteractions()
         {
             try
             {
                 isGeneratingDescription = true;
-                EditorUtility.DisplayProgressBar("Generating Scene Description", "Please wait while the scene is being analyzed...", 0.5f);
+                EditorUtility.DisplayProgressBar("Analyzing Scene & Generating Suggestions", "Please wait while the scene is being analyzed and suggestions are generated...", 0.5f);
                 if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
                 {
                     EditorUtility.ClearProgressBar();
@@ -308,80 +344,41 @@ namespace OojuInteractionPlugin
                     EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
                     return;
                 }
+                // 1. Generate scene description
                 sceneDescription = await OIDescriptor.GenerateSceneDescription();
-                interactionSuggestions = null;
-                EditorUtility.DisplayDialog("Scene Description", "Scene description generated successfully.", "OK");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"Error generating scene description: {ex.Message}");
-                EditorUtility.DisplayDialog("Error", $"Error generating scene description: {ex.Message}", "OK");
-                sceneDescription = $"Error: {ex.Message}";
-            }
-            finally
-            {
-                isGeneratingDescription = false;
-                EditorUtility.ClearProgressBar();
-                Repaint();
-            }
-        }
-
-        // Optimized async method for generating suggestions
-        private async void GenerateSuggestionsInternal()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(sceneDescription))
-                {
-                    EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
-                    return;
-                }
+                // 2. Check selected objects
                 var selectedObjects = Selection.gameObjects;
                 if (selectedObjects.Length == 0)
                 {
+                    EditorUtility.ClearProgressBar();
+                    isGeneratingDescription = false;
                     EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    interactionSuggestions = null;
                     return;
                 }
-                isGeneratingDescription = true;
-                EditorUtility.DisplayProgressBar("Generating Suggestions", "Please wait while suggestions are being generated...", 0.5f);
-                // Store current scene visibility state
-                var sceneVis = UnityEditor.SceneVisibilityManager.instance;
-                var allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
-                var originalHidden = new List<GameObject>();
+                // 3. Use the extra prompt for all objects
+                string extraPrompt = "Prioritize interactions that can be implemented with Unity scripts only, and avoid suggestions that require the user to prepare extra resources such as sound or animation files.";
+                var suggestions = new Dictionary<string, string[]>();
                 foreach (var obj in selectedObjects)
                 {
-                    // Isolate: hide all except this object
-                    foreach (var go in allObjects)
+                    string objName = obj.name;
+                    string prompt = $"Scene Description:\n{sceneDescription}\n\nObject Name: {objName}\n\nSuggest 3 realistic, Unity-implementable interactions for this object, considering the scene context. Only suggest interactions that make sense for this object in Unity. {extraPrompt} If the object is not interactive, respond ONLY with the word: NONE.";
+                    string result = await OIDescriptor.RequestLLMInteraction(prompt);
+                    string[] arr = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = 0; i < arr.Length; i++)
                     {
-                        if (go != obj && !sceneVis.IsHidden(go))
-                        {
-                            sceneVis.Hide(go, false);
-                            originalHidden.Add(go);
-                        }
+                        arr[i] = System.Text.RegularExpressions.Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
                     }
-                    // Focus
-                    Selection.activeGameObject = obj;
-                    SceneView.FrameLastActiveSceneView();
-                    await System.Threading.Tasks.Task.Delay(200); // Give Unity a moment to update view
-                    // Unhide for next object
-                    foreach (var go in originalHidden)
-                    {
-                        if (go != null) sceneVis.Show(go, false);
-                    }
-                    originalHidden.Clear();
+                    suggestions[objName] = arr.Length > 0 ? arr : new[] { "NONE" };
                 }
-                interactionSuggestions = await OIDescriptor.GenerateInteractionSuggestions(sceneDescription, selectedObjects);
-                // Restore all objects to visible
-                foreach (var go in allObjects)
-                {
-                    if (go != null) sceneVis.Show(go, false);
-                }
-                EditorUtility.DisplayDialog("Interaction Suggestions", "Suggestions generated successfully.", "OK");
+                interactionSuggestions = suggestions;
+                EditorUtility.DisplayDialog("Analyze & Suggest", "Scene analyzed and interaction suggestions generated successfully.", "OK");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"Error generating interaction suggestions: {ex.Message}");
-                EditorUtility.DisplayDialog("Error", $"Error generating interaction suggestions: {ex.Message}", "OK");
+                Debug.LogError($"Error in AnalyzeSceneAndSuggestInteractions: {ex.Message}");
+                EditorUtility.DisplayDialog("Error", $"Error in AnalyzeSceneAndSuggestInteractions: {ex.Message}", "OK");
+                sceneDescription = $"Error: {ex.Message}";
                 interactionSuggestions = new Dictionary<string, string[]> { { "Error", new string[] { ex.Message } } };
             }
             finally
@@ -414,26 +411,24 @@ namespace OojuInteractionPlugin
                 }
                 isGeneratingDescription = true;
                 EditorUtility.DisplayProgressBar("Generating Interaction", "Please wait while the interaction is being generated...", 0.5f);
-                string prompt = $"Scene Description:\n{sceneDescription}\n\nUser Request (Sentence):\n{userInteractionInput}\n\n" +
-                                "1. Generate a Unity C# script for this interaction.\n" +
-                                "2. The script must define only one class, and the class name must be unique (for example, append a timestamp or a random string).\n" +
-                                "3. Do not define the same class or method more than once.\n" +
-                                "4. If you need to implement Update, Start, or other Unity methods, each should appear only once in the class.\n" +
-                                "5. All comments in the script must be written in English.\n" +
-                                "6. Output only the code block.";
+                string prompt = $"Scene Description:\n{sceneDescription}\n\nUser Request (Sentence):\n{userInteractionInput}\n\n1. Generate a Unity C# script for this interaction.\n2. The script must define only one class, and the class name must be unique (for example, append a timestamp or a random string).\n3. Do not define the same class or method more than once.\n4. If you need to implement Update, Start, or other Unity methods, each should appear only once in the class.\n5. All comments in the script must be written in English.\n6. Output only the code block.\n7. Prioritize interactions that can be implemented with Unity scripts only, and avoid suggestions that require the user to prepare extra resources such as sound or animation files.";
                 sentenceToInteractionResult = await OIDescriptor.RequestLLMInteraction(prompt);
                 string code = ExtractCodeBlock(sentenceToInteractionResult);
                 if (!string.IsNullOrEmpty(code))
                 {
                     lastGeneratedScriptPath = SaveGeneratedScript(code);
+                    // Extract class name from code for robust assignment
+                    lastGeneratedClassName = ExtractClassNameFromCode(code);
+                    UnityEditor.AssetDatabase.Refresh();
                 }
                 else
                 {
                     lastGeneratedScriptPath = "No code block found.";
+                    lastGeneratedClassName = "";
                 }
                 lastSuggestedObjectNames = ExtractSuggestedObjectNames(sentenceToInteractionResult);
                 foundSuggestedObjects = FindObjectsInSceneByNames(lastSuggestedObjectNames);
-                EditorUtility.DisplayDialog("Sentence-to-Interaction", "Interaction generated successfully.\nScript saved to: " + lastGeneratedScriptPath, "OK");
+                EditorUtility.DisplayDialog("Sentence-to-Interaction", "Interaction generated successfully. You can now assign the script to the selected object(s).", "OK");
             }
             catch (Exception ex)
             {
@@ -441,6 +436,7 @@ namespace OojuInteractionPlugin
                 EditorUtility.DisplayDialog("Error", $"Error generating interaction: {ex.Message}", "OK");
                 sentenceToInteractionResult = $"Error: {ex.Message}";
                 lastGeneratedScriptPath = "";
+                lastGeneratedClassName = "";
                 lastSuggestedObjectNames = "";
                 foundSuggestedObjects.Clear();
             }
@@ -450,6 +446,54 @@ namespace OojuInteractionPlugin
                 EditorUtility.ClearProgressBar();
                 Repaint();
             }
+        }
+
+        // Button handler to assign the generated script to selected objects
+        private void AssignScriptToSelectedObjects()
+        {
+            if (string.IsNullOrEmpty(lastGeneratedClassName))
+            {
+                EditorUtility.DisplayDialog("Assign Script", "No generated script to assign.", "OK");
+                return;
+            }
+            var selectedObjects = Selection.gameObjects;
+            if (selectedObjects == null || selectedObjects.Length == 0)
+            {
+                EditorUtility.DisplayDialog("Assign Script", "No objects selected.", "OK");
+                return;
+            }
+            var scriptType = GetTypeByName(lastGeneratedClassName);
+            if (scriptType == null)
+            {
+                EditorUtility.DisplayDialog("Assign Script", $"Could not find compiled script type: {lastGeneratedClassName}. Please recompile scripts and try again.", "OK");
+                return;
+            }
+            int addedCount = 0;
+            foreach (var obj in selectedObjects)
+            {
+                if (obj != null && obj.GetComponent(scriptType) == null)
+                {
+                    Undo.AddComponent(obj, scriptType);
+                    addedCount++;
+                }
+            }
+            EditorUtility.DisplayDialog("Assign Script", $"Script assigned to {addedCount} object(s).", "OK");
+        }
+
+        // Helper: Find a Type by class name in loaded assemblies
+        private Type GetTypeByName(string className)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(className);
+                if (type != null)
+                    return type;
+                // Try with namespace wildcard
+                type = assembly.GetTypes().FirstOrDefault(t => t.Name == className);
+                if (type != null)
+                    return type;
+            }
+            return null;
         }
 
         // Extracts the first C# code block from the LLM result
@@ -612,6 +656,16 @@ namespace OojuInteractionPlugin
             return name;
         }
 
+        // Extract the class name from the generated code using regex
+        private string ExtractClassNameFromCode(string code)
+        {
+            if (string.IsNullOrEmpty(code)) return null;
+            var match = System.Text.RegularExpressions.Regex.Match(code, @"class\s+([A-Za-z_][A-Za-z0-9_]*)");
+            if (match.Success)
+                return match.Groups[1].Value.Trim().TrimEnd('.');
+            return null;
+        }
+
         // Settings internal tab UI (minimal skeleton)
         private void DrawSettingsTab()
         {
@@ -640,6 +694,99 @@ namespace OojuInteractionPlugin
                 EditorUtility.SetDirty(OISettings.Instance);
                 AssetDatabase.SaveAssets();
                 EditorUtility.DisplayDialog("Saved", "API Key has been saved.", "OK");
+            }
+        }
+
+        // Scene Description이 이미 생성된 경우, 선택된 오브젝트에 대해 Interaction Suggestion만 다시 생성하는 함수
+        private async void RegenerateInteractionSuggestionsOnly()
+        {
+            try
+            {
+                isGeneratingDescription = true;
+                EditorUtility.DisplayProgressBar("Generating Suggestions", "Please wait while suggestions are being generated...", 0.5f);
+                if (string.IsNullOrEmpty(sceneDescription))
+                {
+                    EditorUtility.ClearProgressBar();
+                    isGeneratingDescription = false;
+                    EditorUtility.DisplayDialog("Error", "Scene description is not available.", "OK");
+                    return;
+                }
+                var selectedObjects = Selection.gameObjects;
+                if (selectedObjects.Length == 0)
+                {
+                    EditorUtility.ClearProgressBar();
+                    isGeneratingDescription = false;
+                    EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
+                    interactionSuggestions = null;
+                    return;
+                }
+                // Add extra instruction to the prompt to avoid requiring extra resources
+                string extraPrompt = "Prioritize interactions that can be implemented with Unity scripts only, and avoid suggestions that require the user to prepare extra resources such as sound or animation files.";
+                Dictionary<string, string> customObjectDescriptions = new Dictionary<string, string>();
+                foreach (var obj in selectedObjects)
+                {
+                    string objName = obj.name;
+                    if (userObjectInput.ContainsKey(objName) && !string.IsNullOrWhiteSpace(userObjectInput[objName]))
+                    {
+                        customObjectDescriptions[objName] = userObjectInput[objName];
+                    }
+                }
+                if (customObjectDescriptions.Count > 0)
+                {
+                    var suggestions = new Dictionary<string, string[]>();
+                    foreach (var obj in selectedObjects)
+                    {
+                        string objName = obj.name;
+                        string prompt;
+                        if (customObjectDescriptions.ContainsKey(objName))
+                        {
+                            prompt = $"Scene Description:\n{sceneDescription}\n\nObject Name: {objName}\nUser Description: {customObjectDescriptions[objName]}\n\nSuggest 3 realistic, Unity-implementable interactions for this object, considering the user description and scene context. Only suggest interactions that make sense for this object in Unity. {extraPrompt} If the object is not interactive, respond ONLY with the word: NONE.";
+                        }
+                        else
+                        {
+                            prompt = $"Scene Description:\n{sceneDescription}\n\nObject Name: {objName}\n\nSuggest 3 realistic, Unity-implementable interactions for this object, considering the scene context. Only suggest interactions that make sense for this object in Unity. {extraPrompt} If the object is not interactive, respond ONLY with the word: NONE.";
+                        }
+                        string result = await OIDescriptor.RequestLLMInteraction(prompt);
+                        string[] arr = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        for (int i = 0; i < arr.Length; i++)
+                        {
+                            arr[i] = System.Text.RegularExpressions.Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
+                        }
+                        suggestions[objName] = arr.Length > 0 ? arr : new[] { "NONE" };
+                    }
+                    interactionSuggestions = suggestions;
+                }
+                else
+                {
+                    // Use the extra prompt for all objects
+                    var suggestions = new Dictionary<string, string[]>();
+                    foreach (var obj in selectedObjects)
+                    {
+                        string objName = obj.name;
+                        string prompt = $"Scene Description:\n{sceneDescription}\n\nObject Name: {objName}\n\nSuggest 3 realistic, Unity-implementable interactions for this object, considering the scene context. Only suggest interactions that make sense for this object in Unity. {extraPrompt} If the object is not interactive, respond ONLY with the word: NONE.";
+                        string result = await OIDescriptor.RequestLLMInteraction(prompt);
+                        string[] arr = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        for (int i = 0; i < arr.Length; i++)
+                        {
+                            arr[i] = System.Text.RegularExpressions.Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
+                        }
+                        suggestions[objName] = arr.Length > 0 ? arr : new[] { "NONE" };
+                    }
+                    interactionSuggestions = suggestions;
+                }
+                EditorUtility.DisplayDialog("Interaction Suggestions", "Suggestions generated successfully.", "OK");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}");
+                EditorUtility.DisplayDialog("Error", $"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}", "OK");
+                interactionSuggestions = new Dictionary<string, string[]> { { "Error", new string[] { ex.Message } } };
+            }
+            finally
+            {
+                isGeneratingDescription = false;
+                EditorUtility.ClearProgressBar();
+                Repaint();
             }
         }
     }
