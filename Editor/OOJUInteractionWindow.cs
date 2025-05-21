@@ -137,6 +137,68 @@ namespace OojuInteractionPlugin
                 descriptionScrollPosition = EditorGUILayout.BeginScrollView(descriptionScrollPosition, GUILayout.Height(100), GUILayout.ExpandWidth(true));
                 EditorGUILayout.TextArea(sceneDescription, EditorStyles.wordWrappedLabel, GUILayout.ExpandWidth(true));
                 EditorGUILayout.EndScrollView();
+                GUILayout.Space(5);
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                EditorGUI.BeginDisabledGroup(isGeneratingDescription);
+                if (GUILayout.Button(new GUIContent("Generate Interaction Suggestions", "Generate realistic, Unity-implementable interaction ideas based on the current scene description and selected objects."), GUILayout.Width(buttonWidth), GUILayout.Height(25)))
+                {
+                    try
+                    {
+                        GenerateSuggestionsInternal();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Error in GenerateSuggestionsInternal: {ex.Message}");
+                        EditorUtility.DisplayDialog("Error", $"Error in GenerateSuggestionsInternal: {ex.Message}", "OK");
+                    }
+                }
+                EditorGUI.EndDisabledGroup();
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+                if (interactionSuggestions != null && interactionSuggestions.Count > 0)
+                {
+                    GUILayout.Space(10);
+                    EditorGUILayout.LabelField("Interaction Suggestions:", EditorStyles.boldLabel);
+                    bool hasAnyValid = false;
+                    foreach (var kvp in interactionSuggestions)
+                    {
+                        EditorGUILayout.LabelField($"- {kvp.Key}", EditorStyles.miniBoldLabel);
+                        bool validFound = false;
+                        foreach (var suggestion in kvp.Value)
+                        {
+                            string cleanSuggestion = suggestion;
+                            if (!string.IsNullOrWhiteSpace(cleanSuggestion) && cleanSuggestion != "NONE" && cleanSuggestion != "ERROR")
+                            {
+                                // Remove bold markdown (**) from suggestion
+                                cleanSuggestion = System.Text.RegularExpressions.Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
+                                // Make suggestion clickable to set as Sentence-to-Interaction input
+                                EditorGUILayout.BeginHorizontal();
+                                if (GUILayout.Button(cleanSuggestion, EditorStyles.miniButton, GUILayout.ExpandWidth(false)))
+                                {
+                                    userInteractionInput = cleanSuggestion;
+                                }
+                                EditorGUILayout.EndHorizontal();
+                                validFound = true;
+                                hasAnyValid = true;
+                            }
+                        }
+                        if (!validFound)
+                        {
+                            EditorGUILayout.LabelField("    (No valid suggestions found for this object.)", EditorStyles.wordWrappedMiniLabel);
+                            EditorGUILayout.LabelField("    This may happen if the object is not mentioned in the scene description or is not relevant to the current scene context.", EditorStyles.wordWrappedMiniLabel);
+                        }
+                    }
+                    if (!hasAnyValid)
+                    {
+                        EditorGUILayout.LabelField("No valid interaction suggestions found.", EditorStyles.wordWrappedMiniLabel);
+                    }
+                }
+                else
+                {
+                    GUILayout.Space(10);
+                    EditorGUILayout.LabelField("No interaction suggestions available.", EditorStyles.wordWrappedMiniLabel);
+                }
             }
             GUILayout.Space(10);
             EditorGUILayout.EndVertical();
@@ -280,7 +342,38 @@ namespace OojuInteractionPlugin
                 }
                 isGeneratingDescription = true;
                 EditorUtility.DisplayProgressBar("Generating Suggestions", "Please wait while suggestions are being generated...", 0.5f);
+                // Store current scene visibility state
+                var sceneVis = UnityEditor.SceneVisibilityManager.instance;
+                var allObjects = GameObject.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+                var originalHidden = new List<GameObject>();
+                foreach (var obj in selectedObjects)
+                {
+                    // Isolate: hide all except this object
+                    foreach (var go in allObjects)
+                    {
+                        if (go != obj && !sceneVis.IsHidden(go))
+                        {
+                            sceneVis.Hide(go, false);
+                            originalHidden.Add(go);
+                        }
+                    }
+                    // Focus
+                    Selection.activeGameObject = obj;
+                    SceneView.FrameLastActiveSceneView();
+                    await System.Threading.Tasks.Task.Delay(200); // Give Unity a moment to update view
+                    // Unhide for next object
+                    foreach (var go in originalHidden)
+                    {
+                        if (go != null) sceneVis.Show(go, false);
+                    }
+                    originalHidden.Clear();
+                }
                 interactionSuggestions = await OIDescriptor.GenerateInteractionSuggestions(sceneDescription, selectedObjects);
+                // Restore all objects to visible
+                foreach (var go in allObjects)
+                {
+                    if (go != null) sceneVis.Show(go, false);
+                }
                 EditorUtility.DisplayDialog("Interaction Suggestions", "Suggestions generated successfully.", "OK");
             }
             catch (Exception ex)
