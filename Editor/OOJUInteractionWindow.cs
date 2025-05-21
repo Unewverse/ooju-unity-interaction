@@ -172,19 +172,21 @@ namespace OojuInteractionPlugin
                             {
                                 // Remove bold markdown (**) from suggestion
                                 cleanSuggestion = System.Text.RegularExpressions.Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
-                                // Make suggestion clickable to set as Sentence-to-Interaction input
-                                EditorGUILayout.BeginHorizontal();
-                                if (GUILayout.Button(cleanSuggestion, EditorStyles.miniButton, GUILayout.ExpandWidth(false)))
+                                // Show suggestion as a word-wrapped label with max width
+                                EditorGUILayout.LabelField(cleanSuggestion, EditorStyles.wordWrappedLabel, GUILayout.MaxWidth(400));
+                                // Place 'Apply' button below the label
+                                if (GUILayout.Button("Apply", EditorStyles.miniButton, GUILayout.Width(60)))
                                 {
                                     userInteractionInput = cleanSuggestion;
                                 }
-                                EditorGUILayout.EndHorizontal();
+                                GUILayout.Space(5); // Add some space between suggestions
                                 validFound = true;
                                 hasAnyValid = true;
                             }
                         }
                         if (!validFound)
                         {
+                            // Show message if no valid suggestions are found for this object
                             EditorGUILayout.LabelField("    (No valid suggestions found for this object.)", EditorStyles.wordWrappedMiniLabel);
                             EditorGUILayout.LabelField("    This may happen if the object is not mentioned in the scene description or is not relevant to the current scene context.", EditorStyles.wordWrappedMiniLabel);
                         }
