@@ -37,11 +37,14 @@ namespace OojuInteractionPlugin
         public float baseBounceHeight;
         public float squashStretchRatio;
 
-        public RelationalType RelationalType
-        {
-            get => relationalType;
-            private set => relationalType = value;
-        }
+        public float orbitRadius;
+        public float orbitSpeed;
+        public float lookAtSpeed;
+        public float followSpeed;
+        public float followStopDistance;
+        public float pathMoveSpeed;
+        public bool snapRotation;
+
         public Transform RelationalReferenceObject
         {
             get => relationalReferenceObject;
@@ -76,6 +79,33 @@ namespace OojuInteractionPlugin
             if (animationType != AnimationType.None && Application.isPlaying)
             {
                 StartAnimation();
+            }
+            // If relationalType is set and in play mode, start relational animation automatically
+            if (relationalType != RelationalType.None && Application.isPlaying)
+            {
+                switch (relationalType)
+                {
+                    case RelationalType.Orbit:
+                        if (relationalReferenceObject != null && Application.isPlaying)
+                            currentAnimationCoroutine = StartCoroutine(OrbitAnimation());
+                        break;
+                    case RelationalType.LookAt:
+                        if (relationalReferenceObject != null && Application.isPlaying)
+                            currentAnimationCoroutine = StartCoroutine(LookAtAnimation());
+                        break;
+                    case RelationalType.Follow:
+                        if (relationalReferenceObject != null && Application.isPlaying)
+                            currentAnimationCoroutine = StartCoroutine(FollowAnimation());
+                        break;
+                    case RelationalType.MoveAlongPath:
+                        if (pathPoints != null && pathPoints.Count > 1 && Application.isPlaying)
+                            currentAnimationCoroutine = StartCoroutine(MoveAlongPathAnimation());
+                        break;
+                    case RelationalType.SnapToObject:
+                        if (relationalReferenceObject != null && Application.isPlaying)
+                            currentAnimationCoroutine = StartCoroutine(SnapToObjectAnimation());
+                        break;
+                }
             }
         }
 
@@ -132,40 +162,35 @@ namespace OojuInteractionPlugin
         public void StartOrbit(Transform target, float radius, float speed, float duration)
         {
             StopCurrentAnimation();
-            RelationalType = RelationalType.Orbit;
-            RelationalReferenceObject = target;
+            relationalReferenceObject = target;
             currentAnimationCoroutine = StartCoroutine(OrbitAnimation());
         }
 
         public void StartLookAt(Transform target, float speed, float duration)
         {
             StopCurrentAnimation();
-            RelationalType = RelationalType.LookAt;
-            RelationalReferenceObject = target;
+            relationalReferenceObject = target;
             currentAnimationCoroutine = StartCoroutine(LookAtAnimation());
         }
 
         public void StartFollow(Transform target, float speed, float stopDistance, float duration)
         {
             StopCurrentAnimation();
-            RelationalType = RelationalType.Follow;
-            RelationalReferenceObject = target;
+            relationalReferenceObject = target;
             currentAnimationCoroutine = StartCoroutine(FollowAnimation());
         }
 
         public void StartMoveAlongPath(List<Transform> points, float speed, float duration)
         {
             StopCurrentAnimation();
-            RelationalType = RelationalType.MoveAlongPath;
-            PathPoints = points;
+            pathPoints = points;
             currentAnimationCoroutine = StartCoroutine(MoveAlongPathAnimation());
         }
 
         public void SnapToObject(Transform target, bool rotate)
         {
             StopCurrentAnimation();
-            RelationalType = RelationalType.SnapToObject;
-            RelationalReferenceObject = target;
+            relationalReferenceObject = target;
             currentAnimationCoroutine = StartCoroutine(SnapToObjectAnimation());
         }
 
@@ -228,80 +253,63 @@ namespace OojuInteractionPlugin
         private IEnumerator OrbitAnimation()
         {
             float time = 0f;
-            Vector3 center = RelationalReferenceObject.position;
+            Vector3 center = relationalReferenceObject.position;
             Vector3 startPosition = transform.position;
             Vector3 orbitAxis = Vector3.up;
 
-            while (time < settings.orbitDuration)
+            while (true)
             {
                 time += Time.deltaTime;
-                float angle = (time / settings.orbitDuration) * 360f * settings.orbitSpeed;
-                Vector3 offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.right * settings.orbitRadius);
+                float angle = time * 360f * orbitSpeed;
+                Vector3 offset = Quaternion.Euler(0f, angle, 0f) * (Vector3.right * orbitRadius);
                 transform.position = center + offset;
                 yield return null;
             }
-
-            ResetTransform();
         }
 
         private IEnumerator LookAtAnimation()
         {
-            float time = 0f;
-            Quaternion startRotation = transform.rotation;
-            Vector3 targetDirection = (RelationalReferenceObject.position - transform.position).normalized;
-            Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
-
-            while (time < settings.lookAtDuration)
+            while (true)
             {
-                time += Time.deltaTime;
-                float t = time / settings.lookAtDuration;
-                transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
+                Vector3 targetDirection = (relationalReferenceObject.position - transform.position).normalized;
+                Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, lookAtSpeed * Time.deltaTime);
                 yield return null;
             }
-
-            ResetTransform();
         }
 
         private IEnumerator FollowAnimation()
         {
-            float time = 0f;
-            Vector3 startPosition = transform.position;
-
-            while (time < settings.followDuration)
+            while (true)
             {
-                time += Time.deltaTime;
-                Vector3 targetPosition = RelationalReferenceObject.position;
+                Vector3 targetPosition = relationalReferenceObject.position;
                 Vector3 direction = (targetPosition - transform.position).normalized;
                 float distance = Vector3.Distance(transform.position, targetPosition);
 
-                if (distance > settings.followStopDistance)
+                if (distance > followStopDistance)
                 {
-                    transform.position += direction * settings.followSpeed * Time.deltaTime;
+                    transform.position += direction * followSpeed * Time.deltaTime;
                 }
 
                 yield return null;
             }
-
-            ResetTransform();
         }
 
         private IEnumerator MoveAlongPathAnimation()
         {
-            if (PathPoints.Count < 2) yield break;
+            if (pathPoints.Count < 2) yield break;
 
-            float time = 0f;
             int currentPoint = 0;
-            Vector3 startPosition = transform.position;
+            float time = 0f;
 
-            while (time < settings.pathMoveDuration)
+            while (true)
             {
-                time += Time.deltaTime;
-                float t = time / settings.pathMoveDuration;
+                int nextPoint = (currentPoint + 1) % pathPoints.Count;
+                Vector3 currentPos = pathPoints[currentPoint].position;
+                Vector3 nextPos = pathPoints[nextPoint].position;
 
-                int nextPoint = (currentPoint + 1) % PathPoints.Count;
-                Vector3 currentPos = PathPoints[currentPoint].position;
-                Vector3 nextPos = PathPoints[nextPoint].position;
-
+                time += Time.deltaTime * pathMoveSpeed;
+                float t = Mathf.Clamp01(time);
                 transform.position = Vector3.Lerp(currentPos, nextPos, t);
 
                 if (t >= 1f)
@@ -312,8 +320,6 @@ namespace OojuInteractionPlugin
 
                 yield return null;
             }
-
-            ResetTransform();
         }
 
         private IEnumerator SnapToObjectAnimation()
@@ -321,8 +327,8 @@ namespace OojuInteractionPlugin
             float time = 0f;
             Vector3 startPosition = transform.position;
             Quaternion startRotation = transform.rotation;
-            Vector3 targetPosition = RelationalReferenceObject.position;
-            Quaternion targetRotation = settings.snapRotation ? RelationalReferenceObject.rotation : startRotation;
+            Vector3 targetPosition = relationalReferenceObject.position;
+            Quaternion targetRotation = settings.snapRotation ? relationalReferenceObject.rotation : startRotation;
 
             while (time < 0.5f)
             {

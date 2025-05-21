@@ -16,9 +16,7 @@ namespace OojuInteractionPlugin
         private Vector2 descriptionScrollPosition = Vector2.zero;
         private string sceneDescription = "";
         private bool isGeneratingDescription = false;
-        private Dictionary<string, string[]> interactionSuggestions = null;
-        private CAIGAnalyzer.AnalysisData analysisData = null;
-        private string caigApiKey = null;
+        private Dictionary<string, string[]> interactionSuggestions = null;        private string caigApiKey = null;
         private string caigApiKeyTemp = null;
         private bool caigApiKeyShow = false;
 
@@ -39,7 +37,7 @@ namespace OojuInteractionPlugin
         private string lastSuggestedObjectNames = "";
 
         // Stores the summary of the generated script
-        private string lastScriptSummary = "";
+
         private Vector2 lastScriptSummaryScroll = Vector2.zero;
 
         [MenuItem("OOJU/Interaction")]
