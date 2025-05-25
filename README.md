@@ -22,21 +22,6 @@ OOJU Interaction is a powerful Unity Editor extension package that enhances your
   - Real-time feedback and suggestions
   - Seamless integration with Unity's existing tools
 
-## Package Structure
-```
-Assets/OOJUInteraction/ooju-unity-interaction/
-├── Editor/
-│   ├── OOJUInteractionWindow.cs      # Main editor window
-│   ├── AnimationUI.cs                # Animation interface
-│   ├── ObjectAutoAnimator.cs         # Animation controller
-│   ├── CAIGDescriptor.cs            # AI integration
-│   ├── CAIGSettings.cs              # Settings management
-│   └── UIStyles.cs                  # UI customization
-├── Runtime/
-│   └── OOJUInteraction.Runtime.asmdef
-└── package.json
-```
-
 ## Installation
 1. **Package Manager Installation**
    - Open Unity Package Manager
@@ -110,14 +95,6 @@ Assets/OOJUInteraction/ooju-unity-interaction/
 - **API Key Issues**: Ensure your OpenAI API key is correctly set in the Settings tab
 - **Script Generation Failures**: Check your internet connection and API key validity
 - **Animation Problems**: Verify object components and hierarchy structure
-
-## Support & Contributing
-- **Documentation**: [GitHub Wiki](https://github.com/Unewverse/ooju-unity-interaction/wiki)
-- **Issues**: [GitHub Issues](https://github.com/Unewverse/ooju-unity-interaction/issues)
-- **Contact**: contact@ooju.world
-
-## License
-This package is licensed under the MIT License. See the LICENSE file for details.
 
 ## Version History
 - 0.1.0: Initial release

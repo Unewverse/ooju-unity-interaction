@@ -5,6 +5,11 @@ using System;
 using OojuInteractionPlugin;
 using System.IO;
 using System.Linq;
+using UnityEditor;
+using UnityEngine;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Runtime.Serialization.Json;
 
 namespace OojuInteractionPlugin
 {
@@ -60,6 +65,19 @@ namespace OojuInteractionPlugin
         private readonly Color32 DisabledButtonBgColor = new Color32(0xB8, 0xB8, 0xB8, 0xFF);
         private readonly Color32 InputTextColor = new Color32(0xDA, 0xDA, 0xDA, 0xFF);
 
+        // EditorPrefs 키 정의
+        private const string PrefKey_SceneDescription = "OOJU_Pref_SceneDescription";
+        private const string PrefKey_InteractionSuggestions = "OOJU_Pref_InteractionSuggestions";
+        private const string PrefKey_UserInteractionInput = "OOJU_Pref_UserInteractionInput";
+        private const string PrefKey_SentenceToInteractionResult = "OOJU_Pref_SentenceToInteractionResult";
+        private const string PrefKey_LastGeneratedScriptPath = "OOJU_Pref_LastGeneratedScriptPath";
+        private const string PrefKey_LastGeneratedClassName = "OOJU_Pref_LastGeneratedClassName";
+        private const string PrefKey_LastSuggestedObjectNames = "OOJU_Pref_LastSuggestedObjectNames";
+        private const string PrefKey_FoundSuggestedObjects = "OOJU_Pref_FoundSuggestedObjects";
+
+        // Stores the last generated suggestion for each object
+        private Dictionary<string, string> lastGeneratedSuggestionPerObject = new Dictionary<string, string>();
+
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
         {
@@ -74,6 +92,94 @@ namespace OojuInteractionPlugin
             caigApiKeyTemp = caigApiKey;
             // Set minimum window size
             minSize = new Vector2(500, 700);
+            // Restore persistent data
+            sceneDescription = EditorPrefs.GetString(PrefKey_SceneDescription, "");
+            string suggestionsJson = EditorPrefs.GetString(PrefKey_InteractionSuggestions, "");
+            if (!string.IsNullOrEmpty(suggestionsJson))
+            {
+                try
+                {
+                    interactionSuggestions = JsonUtility.FromJson<SerializableDict>(suggestionsJson)?.ToDictionary();
+                }
+                catch { interactionSuggestions = null; }
+            }
+            userInteractionInput = EditorPrefs.GetString(PrefKey_UserInteractionInput, "");
+            sentenceToInteractionResult = EditorPrefs.GetString(PrefKey_SentenceToInteractionResult, "");
+            lastGeneratedScriptPath = EditorPrefs.GetString(PrefKey_LastGeneratedScriptPath, "");
+            lastGeneratedClassName = EditorPrefs.GetString(PrefKey_LastGeneratedClassName, "");
+            lastSuggestedObjectNames = EditorPrefs.GetString(PrefKey_LastSuggestedObjectNames, "");
+            // Restore foundSuggestedObjects from names
+            foundSuggestedObjects = new List<GameObject>();
+            string foundNames = EditorPrefs.GetString(PrefKey_FoundSuggestedObjects, "");
+            if (!string.IsNullOrEmpty(foundNames))
+            {
+                foreach (var n in foundNames.Split(','))
+                {
+                    var obj = GameObject.Find(n.Trim());
+                    if (obj != null) foundSuggestedObjects.Add(obj);
+                }
+            }
+        }
+
+        private void OnDisable()
+        {
+            SavePersistentData();
+        }
+
+        private void SavePersistentData()
+        {
+            EditorPrefs.SetString(PrefKey_SceneDescription, sceneDescription ?? "");
+            if (interactionSuggestions != null)
+            {
+                var serializable = new SerializableDict(interactionSuggestions);
+                string json = JsonUtility.ToJson(serializable);
+                EditorPrefs.SetString(PrefKey_InteractionSuggestions, json);
+            }
+            else
+            {
+                EditorPrefs.SetString(PrefKey_InteractionSuggestions, "");
+            }
+            EditorPrefs.SetString(PrefKey_UserInteractionInput, userInteractionInput ?? "");
+            EditorPrefs.SetString(PrefKey_SentenceToInteractionResult, sentenceToInteractionResult ?? "");
+            EditorPrefs.SetString(PrefKey_LastGeneratedScriptPath, lastGeneratedScriptPath ?? "");
+            EditorPrefs.SetString(PrefKey_LastGeneratedClassName, lastGeneratedClassName ?? "");
+            EditorPrefs.SetString(PrefKey_LastSuggestedObjectNames, lastSuggestedObjectNames ?? "");
+            // Save foundSuggestedObjects as comma-separated names
+            if (foundSuggestedObjects != null && foundSuggestedObjects.Count > 0)
+            {
+                string names = string.Join(",", foundSuggestedObjects.Select(o => o != null ? o.name : ""));
+                EditorPrefs.SetString(PrefKey_FoundSuggestedObjects, names);
+            }
+            else
+            {
+                EditorPrefs.SetString(PrefKey_FoundSuggestedObjects, "");
+            }
+        }
+
+        // Serializable dictionary for JSON
+        [Serializable]
+        private class SerializableDict
+        {
+            public List<string> keys = new List<string>();
+            public List<string[]> values = new List<string[]>();
+            public SerializableDict() { }
+            public SerializableDict(Dictionary<string, string[]> dict)
+            {
+                foreach (var kv in dict)
+                {
+                    keys.Add(kv.Key);
+                    values.Add(kv.Value);
+                }
+            }
+            public Dictionary<string, string[]> ToDictionary()
+            {
+                var dict = new Dictionary<string, string[]>();
+                for (int i = 0; i < keys.Count; i++)
+                {
+                    dict[keys[i]] = values[i];
+                }
+                return dict;
+            }
         }
 
         private void OnGUI()
@@ -188,17 +294,28 @@ namespace OojuInteractionPlugin
                         if (!string.IsNullOrWhiteSpace(cleanSuggestion) && cleanSuggestion != "NONE" && cleanSuggestion != "ERROR" && !cleanSuggestion.Contains("No valid suggestions found"))
                         {
                             // Remove bold markdown (**) from suggestion
-                            cleanSuggestion = System.Text.RegularExpressions.Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
+                            cleanSuggestion = Regex.Replace(cleanSuggestion, @"\*\*(.*?)\*\*", "$1");
                             // Show suggestion as a word-wrapped label with max width
                             EditorGUILayout.LabelField(cleanSuggestion, EditorStyles.wordWrappedLabel, GUILayout.MaxWidth(400));
-                            // Apply button with color
+                            // Generate button centered
+                            EditorGUILayout.BeginHorizontal();
+                            GUILayout.FlexibleSpace();
                             prevBg = GUI.backgroundColor;
-                            GUI.backgroundColor = new Color(0.2f,0.7f,0.3f,1f);
-                            if (GUILayout.Button(new GUIContent("Apply", "Apply this suggestion to the input field below."), EditorStyles.miniButton, GUILayout.Width(60)))
+                            prevContent = GUI.contentColor;
+                            GUI.backgroundColor = ButtonBgColor;
+                            GUI.contentColor = ButtonTextColor;
+                            if (GUILayout.Button(new GUIContent("Generate", "Generate this suggestion and create the script."), GUILayout.Width(80)))
                             {
+                                // Save the last generated suggestion for this object
+                                lastGeneratedSuggestionPerObject[objName] = cleanSuggestion;
                                 userInteractionInput = cleanSuggestion;
+                                SavePersistentData();
+                                GenerateSentenceToInteraction();
                             }
                             GUI.backgroundColor = prevBg;
+                            GUI.contentColor = prevContent;
+                            GUILayout.FlexibleSpace();
+                            EditorGUILayout.EndHorizontal();
                             GUILayout.Space(5);
                             validFound = true;
                             hasAnyValid = true;
@@ -206,11 +323,9 @@ namespace OojuInteractionPlugin
                     }
                     if (!validFound)
                     {
-                        // Warning icon and message
-                        EditorGUILayout.BeginHorizontal();
-                        GUILayout.Label(EditorGUIUtility.IconContent("console.warnicon.sml"), GUILayout.Width(18), GUILayout.Height(18));
+                        // Only show HelpBox (icon is included automatically)
                         EditorGUILayout.HelpBox("No valid suggestions found for this object. Please provide a description and desired interaction for this object below.", MessageType.Warning);
-                        EditorGUILayout.EndHorizontal();
+                        // Show user input area for custom description
                         if (!userObjectInput.ContainsKey(objName)) userObjectInput[objName] = "";
                         userObjectInput[objName] = EditorGUILayout.TextArea(userObjectInput[objName], GUILayout.Height(40), GUILayout.ExpandWidth(true));
                         EditorGUILayout.LabelField("This may help if the object is not mentioned in the scene description or is not relevant to the current scene context.", EditorStyles.wordWrappedMiniLabel);
@@ -409,9 +524,7 @@ namespace OojuInteractionPlugin
                     EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
                     return;
                 }
-                // 1. Generate scene description
                 sceneDescription = await OIDescriptor.GenerateSceneDescription();
-                // 2. Check selected objects
                 var selectedObjects = Selection.gameObjects;
                 if (selectedObjects.Length == 0)
                 {
@@ -419,9 +532,9 @@ namespace OojuInteractionPlugin
                     isGeneratingDescription = false;
                     EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
                     interactionSuggestions = null;
+                    SavePersistentData();
                     return;
                 }
-                // 3. Use the extra prompt for all objects
                 string extraPrompt = "Prioritize interactions that can be implemented with Unity scripts only, and avoid suggestions that require the user to prepare extra resources such as sound or animation files.";
                 var suggestions = new Dictionary<string, string[]>();
                 foreach (var obj in selectedObjects)
@@ -432,11 +545,12 @@ namespace OojuInteractionPlugin
                     string[] arr = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     for (int i = 0; i < arr.Length; i++)
                     {
-                        arr[i] = System.Text.RegularExpressions.Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
+                        arr[i] = Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
                     }
                     suggestions[objName] = arr.Length > 0 ? arr : new[] { "NONE" };
                 }
                 interactionSuggestions = suggestions;
+                SavePersistentData();
                 EditorUtility.DisplayDialog("Analyze & Suggest", "Scene analyzed and interaction suggestions generated successfully.", "OK");
             }
             catch (Exception ex)
@@ -445,6 +559,7 @@ namespace OojuInteractionPlugin
                 EditorUtility.DisplayDialog("Error", $"Error in AnalyzeSceneAndSuggestInteractions: {ex.Message}", "OK");
                 sceneDescription = $"Error: {ex.Message}";
                 interactionSuggestions = new Dictionary<string, string[]> { { "Error", new string[] { ex.Message } } };
+                SavePersistentData();
             }
             finally
             {
@@ -482,7 +597,6 @@ namespace OojuInteractionPlugin
                 if (!string.IsNullOrEmpty(code))
                 {
                     lastGeneratedScriptPath = SaveGeneratedScript(code);
-                    // Extract class name from code for robust assignment
                     lastGeneratedClassName = ExtractClassNameFromCode(code);
                     UnityEditor.AssetDatabase.Refresh();
                 }
@@ -493,6 +607,7 @@ namespace OojuInteractionPlugin
                 }
                 lastSuggestedObjectNames = ExtractSuggestedObjectNames(sentenceToInteractionResult);
                 foundSuggestedObjects = FindObjectsInSceneByNames(lastSuggestedObjectNames);
+                SavePersistentData();
                 EditorUtility.DisplayDialog("Sentence-to-Interaction", "Interaction generated successfully. You can now assign the script to the selected object(s).", "OK");
             }
             catch (Exception ex)
@@ -504,6 +619,7 @@ namespace OojuInteractionPlugin
                 lastGeneratedClassName = "";
                 lastSuggestedObjectNames = "";
                 foundSuggestedObjects.Clear();
+                SavePersistentData();
             }
             finally
             {
@@ -795,6 +911,7 @@ namespace OojuInteractionPlugin
                     isGeneratingDescription = false;
                     EditorUtility.DisplayDialog("Error", "Please select at least one object.", "OK");
                     interactionSuggestions = null;
+                    SavePersistentData();
                     return;
                 }
                 // Add extra instruction to the prompt to avoid requiring extra resources
@@ -827,7 +944,7 @@ namespace OojuInteractionPlugin
                         string[] arr = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
                         for (int i = 0; i < arr.Length; i++)
                         {
-                            arr[i] = System.Text.RegularExpressions.Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
+                            arr[i] = Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
                         }
                         suggestions[objName] = arr.Length > 0 ? arr : new[] { "NONE" };
                     }
@@ -845,12 +962,13 @@ namespace OojuInteractionPlugin
                         string[] arr = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
                         for (int i = 0; i < arr.Length; i++)
                         {
-                            arr[i] = System.Text.RegularExpressions.Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
+                            arr[i] = Regex.Replace(arr[i], @"^\s*(\d+\.|\*|-)\s*", "").Trim();
                         }
                         suggestions[objName] = arr.Length > 0 ? arr : new[] { "NONE" };
                     }
                     interactionSuggestions = suggestions;
                 }
+                SavePersistentData();
                 EditorUtility.DisplayDialog("Interaction Suggestions", "Suggestions generated successfully.", "OK");
             }
             catch (Exception ex)
@@ -858,6 +976,7 @@ namespace OojuInteractionPlugin
                 Debug.LogError($"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}");
                 EditorUtility.DisplayDialog("Error", $"Error in RegenerateInteractionSuggestionsOnly: {ex.Message}", "OK");
                 interactionSuggestions = new Dictionary<string, string[]> { { "Error", new string[] { ex.Message } } };
+                SavePersistentData();
             }
             finally
             {
