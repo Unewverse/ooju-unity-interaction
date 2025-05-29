@@ -10,6 +10,9 @@ namespace OojuInteractionPlugin
         float DefaultWobbleSpeed { get; set; }
         float DefaultScaleAmount { get; set; }
         float DefaultScaleSpeed { get; set; }
+        string ClaudeApiKey { get; set; } // Claude API key
+        string GeminiApiKey { get; set; } // Gemini API key
+        string SelectedLLMType { get; set; } // Selected LLM type: "OpenAI", "Claude", or "Gemini"
         void SaveSettings();
         void LoadSettings();
     }

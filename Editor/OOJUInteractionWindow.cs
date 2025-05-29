@@ -510,20 +510,41 @@ namespace OojuInteractionPlugin
             }
         }
 
+        private bool CheckLLMApiKeyAndShowError()
+        {
+            var settings = OISettings.Instance;
+            string errorMsg = null;
+            switch (settings.SelectedLLMType)
+            {
+                case "OpenAI":
+                    if (string.IsNullOrEmpty(settings.ApiKey))
+                        errorMsg = "OpenAI API Key is not set. Please set it in the Settings tab.";
+                    break;
+                case "Claude":
+                    if (string.IsNullOrEmpty(settings.ClaudeApiKey))
+                        errorMsg = "Claude API Key is not set. Please set it in the Settings tab.";
+                    break;
+                case "Gemini":
+                    if (string.IsNullOrEmpty(settings.GeminiApiKey))
+                        errorMsg = "Gemini API Key is not set. Please set it in the Settings tab.";
+                    break;
+            }
+            if (errorMsg != null)
+            {
+                EditorUtility.DisplayDialog("Error", errorMsg, "OK");
+                return false;
+            }
+            return true;
+        }
+
         // New method: Analyze scene and suggest interactions in one step
         private async void AnalyzeSceneAndSuggestInteractions()
         {
+            if (!CheckLLMApiKeyAndShowError()) return;
             try
             {
                 isGeneratingDescription = true;
                 EditorUtility.DisplayProgressBar("Analyzing Scene & Generating Suggestions", "Please wait while the scene is being analyzed and suggestions are generated...", 0.5f);
-                if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
-                {
-                    EditorUtility.ClearProgressBar();
-                    isGeneratingDescription = false;
-                    EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
-                    return;
-                }
                 sceneDescription = await OIDescriptor.GenerateSceneDescription();
                 var selectedObjects = Selection.gameObjects;
                 if (selectedObjects.Length == 0)
@@ -572,13 +593,9 @@ namespace OojuInteractionPlugin
         // Optimized async method for generating sentence-to-interaction
         private async void GenerateSentenceToInteraction()
         {
+            if (!CheckLLMApiKeyAndShowError()) return;
             try
             {
-                if (string.IsNullOrEmpty(OISettings.Instance.ApiKey))
-                {
-                    EditorUtility.DisplayDialog("Error", "OpenAI API Key is not set. Please set it in the Settings tab.", "OK");
-                    return;
-                }
                 if (string.IsNullOrEmpty(sceneDescription))
                 {
                     EditorUtility.DisplayDialog("Error", "Please generate a scene description first.", "OK");
@@ -591,9 +608,20 @@ namespace OojuInteractionPlugin
                 }
                 isGeneratingDescription = true;
                 EditorUtility.DisplayProgressBar("Generating Interaction", "Please wait while the interaction is being generated...", 0.5f);
-                string prompt = $"Scene Description:\n{sceneDescription}\n\nUser Request (Sentence):\n{userInteractionInput}\n\n1. Generate a Unity C# script for this interaction.\n2. The script must define only one class, and the class name must be unique (for example, append a timestamp or a random string).\n3. Do not define the same class or method more than once.\n4. If you need to implement Update, Start, or other Unity methods, each should appear only once in the class.\n5. All comments in the script must be written in English.\n6. Output only the code block.\n7. Prioritize interactions that can be implemented with Unity scripts only, and avoid suggestions that require the user to prepare extra resources such as sound or animation files.";
+                string prompt = $"Scene Description:\n{sceneDescription}\n\nUser Request (Sentence):\n{userInteractionInput}\n\n1. Generate a Unity C# script for this interaction.\n2. The script must define only one class, and the class name must be unique (for example, append a timestamp or a random string).\n3. The generated class must inherit from UnityEngine.MonoBehaviour.\n4. Do not define the same class or method more than once.\n5. If you need to implement Update, Start, or other Unity methods, each should appear only once in the class.\n6. All comments in the script must be written in English.\n7. Output only the code block.\n8. Prioritize interactions that can be implemented with Unity scripts only, and avoid suggestions that require the user to prepare extra resources such as sound or animation files.";
                 sentenceToInteractionResult = await OIDescriptor.RequestLLMInteraction(prompt);
                 string code = ExtractCodeBlock(sentenceToInteractionResult);
+                // Safely insert : MonoBehaviour after the first class declaration
+                if (!string.IsNullOrEmpty(code) && !code.Contains(": MonoBehaviour"))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(code, @"class\s+([A-Za-z_][A-Za-z0-9_]*)");
+                    if (match.Success)
+                    {
+                        string original = match.Value;
+                        string replacement = original + " : MonoBehaviour";
+                        code = code.Replace(original, replacement);
+                    }
+                }
                 if (!string.IsNullOrEmpty(code))
                 {
                     lastGeneratedScriptPath = SaveGeneratedScript(code);
@@ -851,48 +879,40 @@ namespace OojuInteractionPlugin
         private void DrawSettingsTab()
         {
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("OpenAI API Settings", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("AI Model Settings", EditorStyles.boldLabel);
             EditorGUILayout.Space();
-            EditorGUILayout.BeginHorizontal();
-            if (caigApiKeyShow)
-            {
-                caigApiKeyTemp = EditorGUILayout.TextField("API Key", caigApiKeyTemp);
-            }
-            else
-            {
-                caigApiKeyTemp = EditorGUILayout.PasswordField("API Key", caigApiKeyTemp);
-            }
-            Color prevBg = GUI.backgroundColor;
-            Color prevContent = GUI.contentColor;
-            GUI.backgroundColor = ButtonBgColor;
-            GUI.contentColor = ButtonTextColor;
-            if (GUILayout.Button(caigApiKeyShow ? "Hide" : "Show", GUILayout.Width(60)))
-            {
-                caigApiKeyShow = !caigApiKeyShow;
-            }
-            GUI.backgroundColor = prevBg;
-            GUI.contentColor = prevContent;
-            EditorGUILayout.EndHorizontal();
+            string[] llmTypes = new[] { "OpenAI", "Claude", "Gemini" };
+            int selectedIdx = Array.IndexOf(llmTypes, OISettings.Instance.SelectedLLMType);
+            if (selectedIdx < 0) selectedIdx = 0;
+            selectedIdx = EditorGUILayout.Popup("Models", selectedIdx, llmTypes);
+            OISettings.Instance.SelectedLLMType = llmTypes[selectedIdx];
             EditorGUILayout.Space();
-            prevBg = GUI.backgroundColor;
-            prevContent = GUI.contentColor;
-            GUI.backgroundColor = ButtonBgColor;
-            GUI.contentColor = ButtonTextColor;
-            if (GUILayout.Button("Save API Key"))
+            switch (OISettings.Instance.SelectedLLMType)
             {
-                caigApiKey = caigApiKeyTemp;
-                OISettings.Instance.ApiKey = caigApiKey;
+                case "OpenAI":
+                    OISettings.Instance.ApiKey = EditorGUILayout.PasswordField("OpenAI API Key", OISettings.Instance.ApiKey);
+                    break;
+                case "Claude":
+                    OISettings.Instance.ClaudeApiKey = EditorGUILayout.PasswordField("Claude API Key", OISettings.Instance.ClaudeApiKey);
+                    break;
+                case "Gemini":
+                    OISettings.Instance.GeminiApiKey = EditorGUILayout.PasswordField("Gemini API Key", OISettings.Instance.GeminiApiKey);
+                    break;
+            }
+            EditorGUILayout.Space();
+            if (GUILayout.Button("Save Settings"))
+            {
+                OISettings.Instance.SaveSettings();
                 EditorUtility.SetDirty(OISettings.Instance);
                 AssetDatabase.SaveAssets();
-                EditorUtility.DisplayDialog("Saved", "API Key has been saved.", "OK");
+                EditorUtility.DisplayDialog("Saved", "Settings have been saved.", "OK");
             }
-            GUI.backgroundColor = prevBg;
-            GUI.contentColor = prevContent;
         }
 
         // Scene Description이 이미 생성된 경우, 선택된 오브젝트에 대해 Interaction Suggestion만 다시 생성하는 함수
         private async void RegenerateInteractionSuggestionsOnly()
         {
+            if (!CheckLLMApiKeyAndShowError()) return;
             try
             {
                 isGeneratingDescription = true;

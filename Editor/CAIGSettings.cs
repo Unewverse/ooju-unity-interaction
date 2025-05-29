@@ -29,6 +29,9 @@ namespace OojuInteractionPlugin
         // API settings
         [SerializeField] private string apiKey = "";
         [SerializeField] private string baseUrl = "https://api.ooju.com";
+        [SerializeField] private string claudeApiKey = "";
+        [SerializeField] private string geminiApiKey = "";
+        [SerializeField] private string selectedLLMType = "OpenAI";
 
         // Animation settings
         [SerializeField] private float defaultHoverAmplitude = 0.5f;
@@ -123,10 +126,17 @@ namespace OojuInteractionPlugin
             }
         }
 
+        public string ClaudeApiKey { get => claudeApiKey; set { claudeApiKey = value; SaveSettings(); } }
+        public string GeminiApiKey { get => geminiApiKey; set { geminiApiKey = value; SaveSettings(); } }
+        public string SelectedLLMType { get => selectedLLMType; set { selectedLLMType = value; SaveSettings(); } }
+
         // Save settings to PlayerPrefs
         public void SaveSettings()
         {
             PlayerPrefs.SetString("CAIG_ApiKey", apiKey);
+            PlayerPrefs.SetString("CAIG_ClaudeApiKey", claudeApiKey);
+            PlayerPrefs.SetString("CAIG_GeminiApiKey", geminiApiKey);
+            PlayerPrefs.SetString("CAIG_SelectedLLMType", selectedLLMType);
             PlayerPrefs.SetString("CAIG_BaseUrl", baseUrl);
             PlayerPrefs.SetFloat("CAIG_HoverAmplitude", defaultHoverAmplitude);
             PlayerPrefs.SetFloat("CAIG_HoverFrequency", defaultHoverFrequency);
@@ -141,6 +151,9 @@ namespace OojuInteractionPlugin
         public void LoadSettings()
         {
             apiKey = PlayerPrefs.GetString("CAIG_ApiKey", "");
+            claudeApiKey = PlayerPrefs.GetString("CAIG_ClaudeApiKey", "");
+            geminiApiKey = PlayerPrefs.GetString("CAIG_GeminiApiKey", "");
+            selectedLLMType = PlayerPrefs.GetString("CAIG_SelectedLLMType", "OpenAI");
             baseUrl = PlayerPrefs.GetString("CAIG_BaseUrl", "https://api.ooju.com");
             defaultHoverAmplitude = PlayerPrefs.GetFloat("CAIG_HoverAmplitude", 0.5f);
             defaultHoverFrequency = PlayerPrefs.GetFloat("CAIG_HoverFrequency", 1f);
