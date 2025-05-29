@@ -22,19 +22,23 @@ namespace OojuInteractionPlugin
         {
             try
             {
-                string apiKey = OISettings.Instance.ApiKey;
-                if (string.IsNullOrEmpty(apiKey))
+                var settings = OISettings.Instance;
+                ILLMService llmService = settings.SelectedLLMType switch
                 {
-                    Debug.LogError("OpenAI API Key is not set. Please set it in the Settings window.");
-                    return "Error: API Key is not set. Please set it in the Settings window.";
-                }
-
+                    "Claude" => new ClaudeService(settings.ClaudeApiKey),
+                    "Gemini" => new GeminiService(settings.GeminiApiKey),
+                    _ => new OpenAIService(settings.ApiKey)
+                };
                 string screenshotPath = CaptureSceneScreenshot();
                 if (string.IsNullOrEmpty(screenshotPath))
                 {
                     return "Failed to capture scene screenshot.";
                 }
-
+                // For now, only OpenAI supports vision. Others return a message.
+                if (settings.SelectedLLMType != "OpenAI")
+                {
+                    return "Scene description generation with image is only supported for OpenAI at this time.";
+                }
                 string description = await CallOpenAIAPI(screenshotPath);
                 return description ?? "Failed to generate description.";
             }
@@ -49,32 +53,29 @@ namespace OojuInteractionPlugin
         {
             try
             {
-                string apiKey = OISettings.Instance.ApiKey;
-                if (string.IsNullOrEmpty(apiKey))
+                var settings = OISettings.Instance;
+                ILLMService llmService = settings.SelectedLLMType switch
                 {
-                    Debug.LogError("OpenAI API Key is not set. Please set it in the Settings window.");
-                    return null;
-                }
-
+                    "Claude" => new ClaudeService(settings.ClaudeApiKey),
+                    "Gemini" => new GeminiService(settings.GeminiApiKey),
+                    _ => new OpenAIService(settings.ApiKey)
+                };
                 if (string.IsNullOrEmpty(sceneDescription))
                 {
                     Debug.LogError("Scene description is required to generate interaction suggestions.");
                     return null;
                 }
-
                 if (selectedObjects == null || selectedObjects.Length == 0)
                 {
                     Debug.LogError("No objects selected for interaction suggestions.");
                     return null;
                 }
-
                 var suggestions = new Dictionary<string, string[]>();
                 foreach (var obj in selectedObjects)
                 {
-                    string[] objectSuggestions = await GetSuggestionsForObject(obj.name, sceneDescription);
+                    string[] objectSuggestions = await GetSuggestionsForObject(llmService, obj.name, sceneDescription);
                     suggestions[obj.name] = objectSuggestions;
                 }
-
                 return suggestions;
             }
             catch (Exception e)
@@ -84,79 +85,38 @@ namespace OojuInteractionPlugin
             }
         }
 
-        private static async Task<string[]> GetSuggestionsForObject(string objectName, string sceneDescription)
+        private static async Task<string[]> GetSuggestionsForObject(ILLMService llmService, string objectName, string sceneDescription)
         {
             try
             {
-                // Try to get the GameObject by name for more context (shape/type)
                 GameObject obj = GameObject.Find(objectName);
                 string objectType = obj != null ? obj.GetType().Name : "Unknown";
                 string objectShape = obj != null && obj.GetComponent<MeshFilter>() != null ? obj.GetComponent<MeshFilter>().sharedMesh != null ? obj.GetComponent<MeshFilter>().sharedMesh.name : "UnknownMesh" : "UnknownShape";
-                var requestData = new
+                string prompt = $"Given the following Unity scene description and the selected object, suggest 3 realistic, Unity-implementable interactions for the object. Use the object's name, its appearance/type (type: {objectType}, mesh: {objectShape}), and the scene context. Only suggest interactions that make sense for this object in Unity. If the object is not interactive, respond ONLY with the word: NONE.\nScene Description: {sceneDescription}\nObject Name: {objectName}";
+                string result = await llmService.RequestInteraction(prompt);
+                if (result == "NONE")
                 {
-                    model = SUGGESTION_MODEL,
-                    messages = new[]
-                    {
-                        new
-                        {
-                            role = "user",
-                            content = $"Given the following Unity scene description and the selected object, suggest 3 realistic, Unity-implementable interactions for the object. Use the object's name, its appearance/type (type: {objectType}, mesh: {objectShape}), and the scene context. Only suggest interactions that make sense for this object in Unity. If the object is not interactive, respond ONLY with the word: NONE.\nScene Description: {sceneDescription}\nObject Name: {objectName}"
-                        }
-                    },
-                    max_tokens = 180,
-                    temperature = 0.6
-                };
-
-                string jsonData = JsonConvert.SerializeObject(requestData);
-
-                using (UnityWebRequest request = new UnityWebRequest(OPENAI_API_URL, "POST"))
-                {
-                    byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
-                    request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                    request.downloadHandler = new DownloadHandlerBuffer();
-                    request.SetRequestHeader("Content-Type", "application/json");
-                    request.SetRequestHeader("Authorization", $"Bearer {OISettings.Instance.ApiKey}");
-
-                    await request.SendWebRequest();
-
-                    if (request.result == UnityWebRequest.Result.Success)
-                    {
-                        var response = JsonConvert.DeserializeObject<OpenAIResponse>(request.downloadHandler.text);
-                        string content = response?.choices?[0]?.message?.content;
-
-                        if (content == "NONE")
-                        {
-                            return new[] { "NONE" };
-                        }
-
-                        var suggestions = content.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                        for (int i = 0; i < suggestions.Length; i++)
-                        {
-                            suggestions[i] = System.Text.RegularExpressions.Regex.Replace(suggestions[i], @"^\s*(\d+\.|\*|-)", "").Trim();
-                        }
-
-                        if (suggestions.Length < 3)
-                        {
-                            var paddedSuggestions = new List<string>(suggestions);
-                            while (paddedSuggestions.Count < 3)
-                            {
-                                paddedSuggestions.Add("Interact.");
-                            }
-                            suggestions = paddedSuggestions.ToArray();
-                        }
-                        else if (suggestions.Length > 3)
-                        {
-                            suggestions = suggestions.Take(3).ToArray();
-                        }
-
-                        return suggestions;
-                    }
-                    else
-                    {
-                        Debug.LogError($"OpenAI API Error: {request.error}");
-                        return new[] { "ERROR" };
-                    }
+                    return new[] { "NONE" };
                 }
+                var suggestions = result.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < suggestions.Length; i++)
+                {
+                    suggestions[i] = System.Text.RegularExpressions.Regex.Replace(suggestions[i], @"^\s*(\d+\.|\*|-)" , "").Trim();
+                }
+                if (suggestions.Length < 3)
+                {
+                    var paddedSuggestions = new List<string>(suggestions);
+                    while (paddedSuggestions.Count < 3)
+                    {
+                        paddedSuggestions.Add("Interact.");
+                    }
+                    suggestions = paddedSuggestions.ToArray();
+                }
+                else if (suggestions.Length > 3)
+                {
+                    suggestions = suggestions.Take(3).ToArray();
+                }
+                return suggestions;
             }
             catch (Exception e)
             {
@@ -282,63 +242,14 @@ namespace OojuInteractionPlugin
         // Sends a prompt to OpenAI and returns the response content for Sentence-to-Interaction
         public static async Task<string> RequestLLMInteraction(string prompt)
         {
-            try
+            var settings = OISettings.Instance;
+            ILLMService llmService = settings.SelectedLLMType switch
             {
-                string apiKey = OISettings.Instance.ApiKey;
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    throw new Exception("OpenAI API Key is not set");
-                }
-
-                var requestData = new
-                {
-                    model = SUGGESTION_MODEL,
-                    messages = new[]
-                    {
-                        new { role = "user", content = prompt }
-                    },
-                    max_tokens = 800,
-                    temperature = 0.6
-                };
-
-                string jsonData = JsonConvert.SerializeObject(requestData);
-
-                using (UnityWebRequest request = new UnityWebRequest(OPENAI_API_URL, "POST"))
-                {
-                    byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
-                    request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                    request.downloadHandler = new DownloadHandlerBuffer();
-                    request.SetRequestHeader("Content-Type", "application/json");
-                    request.SetRequestHeader("Authorization", $"Bearer {apiKey}");
-
-                    await request.SendWebRequest();
-
-                    if (request.result == UnityWebRequest.Result.Success)
-                    {
-                        var response = JsonConvert.DeserializeObject<OpenAIResponse>(request.downloadHandler.text);
-                        return response?.choices?[0]?.message?.content ?? "No response generated";
-                    }
-                    else
-                    {
-                        string errorMessage = $"OpenAI API Error: {request.error}";
-                        if (request.responseCode == 401)
-                        {
-                            errorMessage = "Invalid API Key. Please check your API Key in the Settings window.";
-                        }
-                        else if (request.responseCode == 404)
-                        {
-                            errorMessage = "API endpoint not found. Please check if the model name is correct.";
-                        }
-                        Debug.LogError(errorMessage);
-                        return errorMessage;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Error calling OpenAI API: {e.Message}");
-                return $"Error: {e.Message}";
-            }
+                "Claude" => new ClaudeService(settings.ClaudeApiKey),
+                "Gemini" => new GeminiService(settings.GeminiApiKey),
+                _ => new OpenAIService(settings.ApiKey)
+            };
+            return await llmService.RequestInteraction(prompt);
         }
 
         [Serializable]
