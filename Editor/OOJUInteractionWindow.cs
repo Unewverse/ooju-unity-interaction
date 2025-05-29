@@ -5,8 +5,6 @@ using System;
 using OojuInteractionPlugin;
 using System.IO;
 using System.Linq;
-using UnityEditor;
-using UnityEngine;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Runtime.Serialization.Json;
@@ -23,7 +21,6 @@ namespace OojuInteractionPlugin
         private bool isGeneratingDescription = false;
         private Dictionary<string, string[]> interactionSuggestions = null;        private string caigApiKey = null;
         private string caigApiKeyTemp = null;
-        private bool caigApiKeyShow = false;
 
         private enum InteractionTab { Tools, Settings }
         private InteractionTab currentInteractionTab = InteractionTab.Tools;
@@ -218,6 +215,8 @@ namespace OojuInteractionPlugin
             DrawDescriptionSection(buttonWidth);
             GUILayout.Space(20);
             DrawSentenceToInteractionSection(buttonWidth);
+            GUILayout.Space(20);
+            DrawAddPlayerSection(buttonWidth);
             GUILayout.Space(20);
             DrawAnimationSection();
             if (isGeneratingDescription)
@@ -1004,6 +1003,219 @@ namespace OojuInteractionPlugin
                 EditorUtility.ClearProgressBar();
                 Repaint();
             }
+        }
+
+        // Draws the Add Player section (UI + logic)
+        private void DrawAddPlayerSection(float buttonWidth)
+        {
+            // Section icon and header
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label(EditorGUIUtility.IconContent("Avatar Icon"), GUILayout.Width(22), GUILayout.Height(22));
+            GUIStyle sectionTitleStyle = new GUIStyle(EditorStyles.boldLabel);
+            sectionTitleStyle.fontSize = 14;
+            sectionTitleStyle.normal.textColor = SectionTitleColor;
+            EditorGUILayout.LabelField("Add Player", sectionTitleStyle);
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(2);
+            EditorGUILayout.LabelField("Add a player controller to your scene.", EditorStyles.miniLabel);
+            GUILayout.Space(8);
+            // Add First-person Player button
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            Color prevBg = GUI.backgroundColor;
+            Color prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
+            if (GUILayout.Button(new GUIContent("Add First-person Player", "Add a first-person player controller to the scene."), GUILayout.Width(buttonWidth), GUILayout.Height(30)))
+            {
+                AddFirstPersonPlayerToScene();
+            }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(16);
+            // Add Ground button
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            prevBg = GUI.backgroundColor;
+            prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
+            if (GUILayout.Button(new GUIContent("Add Ground", "Add a large ground plane (cube) at y=0."), GUILayout.Width(buttonWidth), GUILayout.Height(28)))
+            {
+                AddGroundToScene();
+            }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(6);
+            // Set Selected as Ground button
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            prevBg = GUI.backgroundColor;
+            prevContent = GUI.contentColor;
+            GUI.backgroundColor = ButtonBgColor;
+            GUI.contentColor = ButtonTextColor;
+            if (GUILayout.Button(new GUIContent("Set Selected as Ground", "Add a MeshCollider to the selected object(s) and set their layer to Default."), GUILayout.Width(buttonWidth), GUILayout.Height(28)))
+            {
+                SetSelectedAsGround();
+            }
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevContent;
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+
+        // Adds a large ground cube at y=0
+        private void AddGroundToScene()
+        {
+            GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            ground.name = "Ground";
+            ground.transform.position = new Vector3(0, -0.5f, 0);
+            ground.transform.localScale = new Vector3(30, 1, 30);
+            ground.layer = LayerMask.NameToLayer("Default");
+            // Ensure it has a BoxCollider
+            BoxCollider col = ground.GetComponent<BoxCollider>();
+            if (col == null) ground.AddComponent<BoxCollider>();
+            Selection.activeGameObject = ground;
+            EditorGUIUtility.PingObject(ground);
+            EditorUtility.DisplayDialog("Ground Added", "A large ground cube has been added at y=0.", "OK");
+        }
+
+        // Adds a MeshCollider to selected objects and sets their layer to Default
+        private void SetSelectedAsGround()
+        {
+            var selected = Selection.gameObjects;
+            if (selected == null || selected.Length == 0)
+            {
+                EditorUtility.DisplayDialog("No Selection", "Please select at least one object in the scene.", "OK");
+                return;
+            }
+            int count = 0;
+            foreach (var obj in selected)
+            {
+                if (obj == null) continue;
+                if (obj.GetComponent<Collider>() == null)
+                    obj.AddComponent<MeshCollider>();
+                obj.layer = LayerMask.NameToLayer("Default");
+                count++;
+            }
+            EditorUtility.DisplayDialog("Set as Ground", $"MeshCollider added and layer set to Default for {count} object(s).", "OK");
+        }
+
+        // Adds a simple first-person player controller to the scene (WASD/arrow keys + Space to jump)
+        private void AddFirstPersonPlayerToScene()
+        {
+            // Check if a FirstPersonPlayer script exists in the project
+            var scriptAsset = AssetDatabase.FindAssets("FirstPersonPlayer t:Script");
+            string scriptPath = null;
+            string directory = "Assets/OOJU/Interaction/Player";
+            if (scriptAsset.Length > 0)
+            {
+                scriptPath = AssetDatabase.GUIDToAssetPath(scriptAsset[0]);
+            }
+            else
+            {
+                // If not found, create a simple FirstPersonPlayer script in Player folder
+                if (!System.IO.Directory.Exists(directory))
+                    System.IO.Directory.CreateDirectory(directory);
+                scriptPath = System.IO.Path.Combine(directory, "FirstPersonPlayer.cs");
+                System.IO.File.WriteAllText(scriptPath, GetFirstPersonPlayerScriptCode());
+                AssetDatabase.Refresh();
+            }
+
+            // Check if the script type is available (compiled)
+            var scriptType = GetTypeByName("FirstPersonPlayer");
+            if (scriptType == null)
+            {
+                EditorUtility.DisplayDialog("Script Compile Needed", "FirstPersonPlayer.cs script was created or updated. Please wait for Unity to compile, then try again.", "OK");
+                return;
+            }
+
+            // Prevent duplicate player in the scene
+            if (GameObject.FindObjectOfType(scriptType) != null)
+            {
+                EditorUtility.DisplayDialog("Already Exists", "A FirstPersonPlayer object already exists in the scene.", "OK");
+                return;
+            }
+
+            // Create a new GameObject for the player
+            GameObject player = new GameObject("FirstPersonPlayer");
+            // Add CharacterController if available
+            var charCtrlType = typeof(CharacterController);
+            if (charCtrlType != null)
+                player.AddComponent<CharacterController>();
+            // Add the FirstPersonPlayer script
+            player.AddComponent(scriptType);
+            Selection.activeGameObject = player;
+            EditorGUIUtility.PingObject(player);
+            EditorUtility.DisplayDialog("First-person Player", "First-person player has been added to the scene!\nUse WASD or arrow keys and Space to jump in Play mode.", "OK");
+        }
+
+        // Returns the code for a simple FirstPersonPlayer script (WASD/arrow keys + Space to jump)
+        private string GetFirstPersonPlayerScriptCode()
+        {
+            return "using UnityEngine;\n" +
+                   "// Simple first-person player controller (WASD/arrow keys + Space to jump)\n" +
+                   "public class FirstPersonPlayer : MonoBehaviour\n" +
+                   "{\n" +
+                   "    public float speed = 5f;\n" +
+                   "    public float mouseSensitivity = 2f;\n" +
+                   "    public float jumpHeight = 2f;\n" +
+                   "    public float gravity = -9.81f;\n" +
+                   "    private float rotationY = 0f;\n" +
+                   "    private CharacterController controller;\n" +
+                   "    private Vector3 velocity;\n" +
+                   "    private bool isGrounded;\n" +
+                   "    void Start()\n" +
+                   "    {\n" +
+                   "        controller = GetComponent<CharacterController>();\n" +
+                   "        // Add a camera if not present\n" +
+                   "        if (GetComponentInChildren<Camera>() == null)\n" +
+                   "        {\n" +
+                   "            GameObject camObj = new GameObject(\"PlayerCamera\");\n" +
+                   "            camObj.transform.SetParent(transform);\n" +
+                   "            camObj.transform.localPosition = new Vector3(0, 1.6f, 0);\n" +
+                   "            camObj.AddComponent<Camera>();\n" +
+                   "        }\n" +
+                   "    }\n" +
+                   "    void Update()\n" +
+                   "    {\n" +
+                   "        // Move\n" +
+                   "        float h = Input.GetAxis(\"Horizontal\");\n" +
+                   "        float v = Input.GetAxis(\"Vertical\");\n" +
+                   "        Vector3 move = transform.right * h + transform.forward * v;\n" +
+                   "        if (controller != null)\n" +
+                   "            controller.Move(move * speed * Time.deltaTime);\n" +
+                   "        else\n" +
+                   "            transform.position += move * speed * Time.deltaTime;\n" +
+                   "        // Mouse look (only in play mode)\n" +
+                   "        if (Application.isPlaying)\n" +
+                   "        {\n" +
+                   "            float mouseX = Input.GetAxis(\"Mouse X\") * mouseSensitivity;\n" +
+                   "            float mouseY = Input.GetAxis(\"Mouse Y\") * mouseSensitivity;\n" +
+                   "            transform.Rotate(0, mouseX, 0);\n" +
+                   "            rotationY -= mouseY;\n" +
+                   "            rotationY = Mathf.Clamp(rotationY, -90f, 90f);\n" +
+                   "            Camera cam = GetComponentInChildren<Camera>();\n" +
+                   "            if (cam)\n" +
+                   "                cam.transform.localEulerAngles = new Vector3(rotationY, 0, 0);\n" +
+                   "        }\n" +
+                   "        // Jump & Gravity\n" +
+                   "        if (controller != null)\n" +
+                   "        {\n" +
+                   "            isGrounded = controller.isGrounded;\n" +
+                   "            if (isGrounded && velocity.y < 0)\n" +
+                   "                velocity.y = -2f;\n" +
+                   "            if (isGrounded && Input.GetKeyDown(KeyCode.Space))\n" +
+                   "                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);\n" +
+                   "            velocity.y += gravity * Time.deltaTime;\n" +
+                   "            controller.Move(velocity * Time.deltaTime);\n" +
+                   "        }\n" +
+                   "    }\n" +
+                   "}";
         }
     }
 } 
