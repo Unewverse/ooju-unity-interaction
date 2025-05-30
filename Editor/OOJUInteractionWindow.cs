@@ -75,6 +75,14 @@ namespace OojuInteractionPlugin
         // Stores the last generated suggestion for each object
         private Dictionary<string, string> lastGeneratedSuggestionPerObject = new Dictionary<string, string>();
 
+        // Add fields for foldout states
+        private bool showInteractionGeneration = true;
+        private bool showAddPlayer = true;
+        private bool showAnimation = true;
+
+        // Add a field for the big foldout style
+        private GUIStyle bigFoldoutStyle;
+
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
         {
@@ -115,6 +123,19 @@ namespace OojuInteractionPlugin
                     var obj = GameObject.Find(n.Trim());
                     if (obj != null) foundSuggestedObjects.Add(obj);
                 }
+            }
+            // Initialize big foldout style
+            if (bigFoldoutStyle == null)
+            {
+                bigFoldoutStyle = new GUIStyle(EditorStyles.foldout);
+                bigFoldoutStyle.fontSize = 16;
+                bigFoldoutStyle.fontStyle = FontStyle.Bold;
+                bigFoldoutStyle.normal.textColor = Color.white;
+                bigFoldoutStyle.onNormal.textColor = Color.white;
+                bigFoldoutStyle.active.textColor = Color.white;
+                bigFoldoutStyle.onActive.textColor = Color.white;
+                bigFoldoutStyle.focused.textColor = Color.white;
+                bigFoldoutStyle.onFocused.textColor = Color.white;
             }
         }
 
@@ -181,6 +202,7 @@ namespace OojuInteractionPlugin
 
         private void OnGUI()
         {
+            DrawHeaderBar();
             if (styles != null && !styles.IsInitialized)
             {
                 styles.Initialize();
@@ -206,19 +228,50 @@ namespace OojuInteractionPlugin
             }
         }
 
+        // Draw the header bar with logo, company name, and website link
+        private void DrawHeaderBar()
+        {
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            // Load logo from Resources/ooju_logo (png/gif/jpg supported, gif will show first frame only)
+            Texture2D logo = Resources.Load<Texture2D>("ooju_logo");
+            if (logo != null)
+                GUILayout.Label(logo, GUILayout.Width(40), GUILayout.Height(40));
+            GUILayout.Label("OOJU", new GUIStyle(EditorStyles.boldLabel) { fontSize = 20, alignment = TextAnchor.MiddleCenter }, GUILayout.Height(40));
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Website", GUILayout.Width(80), GUILayout.Height(24)))
+            {
+                Application.OpenURL("https://www.ooju.world/");
+            }
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(8);
+        }
+
         // Draws the main interaction tools tab UI
         private void DrawInteractionToolsTab(float contentWidth, float buttonWidth)
         {
             mainScrollPosition = EditorGUILayout.BeginScrollView(mainScrollPosition, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Space(20);
-            DrawDescriptionSection(buttonWidth);
+            showInteractionGeneration = EditorGUILayout.Foldout(showInteractionGeneration, "Interaction Generation", true, bigFoldoutStyle);
+            if (showInteractionGeneration)
+            {
+                DrawDescriptionSection(buttonWidth);
+                GUILayout.Space(16);
+                DrawSentenceToInteractionSection(buttonWidth);
+            }
             GUILayout.Space(20);
-            DrawSentenceToInteractionSection(buttonWidth);
+            showAddPlayer = EditorGUILayout.Foldout(showAddPlayer, "Player", true, bigFoldoutStyle);
+            if (showAddPlayer)
+            {
+                DrawAddPlayerSection(buttonWidth);
+            }
             GUILayout.Space(20);
-            DrawAddPlayerSection(buttonWidth);
-            GUILayout.Space(20);
-            DrawAnimationSection();
+            showAnimation = EditorGUILayout.Foldout(showAnimation, "Animation", true, bigFoldoutStyle);
+            if (showAnimation)
+            {
+                DrawAnimationSection();
+            }
             if (isGeneratingDescription)
             {
                 GUILayout.Space(10);
@@ -1124,6 +1177,9 @@ namespace OojuInteractionPlugin
                 scriptPath = System.IO.Path.Combine(directory, "FirstPersonPlayer.cs");
                 System.IO.File.WriteAllText(scriptPath, GetFirstPersonPlayerScriptCode());
                 AssetDatabase.Refresh();
+                // Do NOT add the player object yet, just show compile message
+                EditorUtility.DisplayDialog("Script Created", "FirstPersonPlayer.cs script was created. Please wait for Unity to compile, then press the button again to add the player.", "OK");
+                return;
             }
 
             // Check if the script type is available (compiled)

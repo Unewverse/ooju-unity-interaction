@@ -3,12 +3,15 @@
 ## Overview
 OOJU Interaction is a powerful Unity Editor extension package that enhances your development workflow with AI-powered scene analysis and interaction generation capabilities. This package provides a comprehensive set of tools for creating interactive behaviors and animations in your Unity projects.
 
+Supports multiple AI models: **OpenAI**, **Claude**, **Gemini** (with local LLM support planned for the future).
+
 ## Key Features
 - **AI-Powered Scene Analysis**
-  - Generate detailed scene descriptions using OpenAI
+  - Generate detailed scene descriptions using OpenAI, Claude, or Gemini APIs
   - Get intelligent interaction suggestions for selected objects
   - Convert natural language descriptions into Unity C# scripts
   - Automatic object detection and script application
+  - Easily switch between OpenAI, Claude, and Gemini models in the settings (local LLM support coming soon)
 
 - **Animation System**
   - Built-in animation types (hover, wobble, etc.)
@@ -21,6 +24,13 @@ OOJU Interaction is a powerful Unity Editor extension package that enhances your
   - Drag-and-drop functionality
   - Real-time feedback and suggestions
   - Seamless integration with Unity's existing tools
+
+- **Player & Ground Utility Tools**
+  - Add Player section in the Editor window for quick scene setup
+  - **Add First-person Player**: Instantly create a first-person player prefab (WASD/arrow keys, mouse look, spacebar jump)
+  - **Add Ground**: Quickly add a large ground cube to your scene
+  - **Set Selected as Ground**: Add a MeshCollider and set layer to Default for selected objects
+  - All generated player scripts are saved to `Assets/OOJU/Interaction/Player` for maximum compatibility, regardless of where the package is installed in your project
 
 ## Installation
 1. **Package Manager Installation**
@@ -37,12 +47,16 @@ OOJU Interaction is a powerful Unity Editor extension package that enhances your
 ## Dependencies
 - Unity 2021.3 or later
 - Newtonsoft.Json (com.unity.nuget.newtonsoft-json: 3.0.2)
-- OpenAI API key (for AI features)
+- API key for at least one supported LLM:
+  - OpenAI (for GPT models)
+  - Claude (Anthropic)
+  - Gemini (Google)
+- (Planned) Local LLM support in a future release
 
 ## Getting Started
 1. **Setup**
    - Open the OOJU Interaction window (OOJU > Interaction)
-   - Configure your OpenAI API key in the **Settings** tab
+   - Configure your preferred LLM API key (OpenAI, Claude, or Gemini) in the **Settings** tab
    - Create animation presets if needed
 
 2. **Scene Analysis**
@@ -55,7 +69,13 @@ OOJU Interaction is a powerful Unity Editor extension package that enhances your
    - Click "Generate Interaction"
    - Follow the instructions to apply the generated script
 
-4. **Applying Animations**
+4. **Player & Ground Setup**
+   - Use the **Add Player** section to quickly add a first-person player or ground to your scene
+   - "Add First-person Player" creates a ready-to-use player prefab (script saved to `Assets/OOJU/Interaction/Player`)
+   - "Add Ground" creates a large ground cube at y=0
+   - "Set Selected as Ground" adds a MeshCollider and sets the layer to Default for selected objects
+
+5. **Applying Animations**
    - Select target objects
    - Choose animation type and parameters
    - Click "Apply Animation"
@@ -86,15 +106,18 @@ OOJU Interaction is a powerful Unity Editor extension package that enhances your
    - Test animations in Play mode before finalizing
    - Use appropriate animation types for different scenarios
 
-3. **Script Generation**
+3. **Script Generation & Player Tools**
    - Provide clear, specific descriptions
    - Review generated scripts before applying
-   - Test interactions thoroughly
+   - Test interactions and player movement thoroughly
+   - All generated player scripts are always saved to `Assets/OOJU/Interaction/Player` for compatibility
+   - The package is designed to work regardless of where the OOJUInteraction folder is placed in your Assets
 
 ## Troubleshooting
-- **API Key Issues**: Ensure your OpenAI API key is correctly set in the Settings tab
+- **API Key Issues**: Ensure your LLM API key (OpenAI, Claude, or Gemini) is correctly set in the Settings tab
 - **Script Generation Failures**: Check your internet connection and API key validity
 - **Animation Problems**: Verify object components and hierarchy structure
+- **Player/Ground Issues**: Ensure the correct colliders are present and the player prefab is not duplicated in the scene
 
 ## Version History
 - 0.1.0: Initial release
@@ -102,4 +125,9 @@ OOJU Interaction is a powerful Unity Editor extension package that enhances your
   - Animation system
   - Script generation
   - Editor integration
+- 0.2.0: Add Player section and utility buttons (Add First-person Player, Add Ground, Set Selected as Ground)
+  - Player script always saved to `Assets/OOJU/Interaction/Player`
+  - Improved package compatibility and usability
+  - Support for Claude and Gemini APIs (in addition to OpenAI)
+  - Local LLM support planned for a future release
 
