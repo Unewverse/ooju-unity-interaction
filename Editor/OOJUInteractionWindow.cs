@@ -8,6 +8,10 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Runtime.Serialization.Json;
+#if UNITY_SERVICES_ANALYTICS
+using Unity.Services.Analytics;
+using Unity.Services.Core;
+#endif
 
 namespace OojuInteractionPlugin
 {
@@ -82,6 +86,8 @@ namespace OojuInteractionPlugin
 
         // Add a field for the big foldout style
         private GUIStyle bigFoldoutStyle;
+
+        private Dictionary<string, int> promptTrialCounts = new Dictionary<string, int>();
 
         [MenuItem("OOJU/Interaction")]
         public static void ShowWindow()
@@ -592,6 +598,18 @@ namespace OojuInteractionPlugin
         // New method: Analyze scene and suggest interactions in one step
         private async void AnalyzeSceneAndSuggestInteractions()
         {
+#if UNITY_SERVICES_ANALYTICS
+            // Track context: what are they building?
+            await InitializeAnalyticsIfNeeded();
+            var contextData = new Dictionary<string, object>
+            {
+                { "scene_name", UnityEngine.SceneManagement.SceneManager.GetActiveScene().name },
+                { "selected_objects", string.Join(",", Selection.gameObjects.Select(go => go.name)) },
+                { "total_objects_in_scene", GameObject.FindObjectsOfType<GameObject>().Length },
+                { "timestamp", DateTime.UtcNow.ToString("o") }
+            };
+            AnalyticsService.Instance.CustomData("ooju_context", contextData);
+#endif
             if (!CheckLLMApiKeyAndShowError()) return;
             try
             {
@@ -645,6 +663,32 @@ namespace OojuInteractionPlugin
         // Optimized async method for generating sentence-to-interaction
         private async void GenerateSentenceToInteraction()
         {
+#if UNITY_SERVICES_ANALYTICS
+            await InitializeAnalyticsIfNeeded();
+            // Track interaction prompt
+            var promptData = new Dictionary<string, object>
+            {
+                { "prompt_text", userInteractionInput },
+                { "prompt_length", userInteractionInput?.Length ?? 0 },
+                { "prompt_type", "interaction_generation" },
+                { "timestamp", DateTime.UtcNow.ToString("o") }
+            };
+            AnalyticsService.Instance.CustomData("ooju_prompt", promptData);
+            // Track number of trials for this prompt
+            if (!string.IsNullOrEmpty(userInteractionInput))
+            {
+                if (!promptTrialCounts.ContainsKey(userInteractionInput))
+                    promptTrialCounts[userInteractionInput] = 0;
+                promptTrialCounts[userInteractionInput]++;
+                var trialData = new Dictionary<string, object>
+                {
+                    { "prompt_text", userInteractionInput },
+                    { "trial_count", promptTrialCounts[userInteractionInput] },
+                    { "timestamp", DateTime.UtcNow.ToString("o") }
+                };
+                AnalyticsService.Instance.CustomData("ooju_prompt_trial", trialData);
+            }
+#endif
             if (!CheckLLMApiKeyAndShowError()) return;
             try
             {
@@ -1273,5 +1317,25 @@ namespace OojuInteractionPlugin
                    "    }\n" +
                    "}";
         }
+
+#if UNITY_SERVICES_ANALYTICS
+        // Helper: Initialize Analytics if needed
+        private static bool analyticsInitialized = false;
+        private async System.Threading.Tasks.Task InitializeAnalyticsIfNeeded()
+        {
+            if (!analyticsInitialized)
+            {
+                try
+                {
+                    await UnityServices.InitializeAsync();
+                    analyticsInitialized = true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"Analytics initialization failed: {ex.Message}");
+                }
+            }
+        }
+#endif
     }
 } 
