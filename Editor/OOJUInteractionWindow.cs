@@ -262,6 +262,9 @@ namespace OojuInteractionPlugin
             mainScrollPosition = EditorGUILayout.BeginScrollView(mainScrollPosition, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Space(20);
+
+            // Wrap each foldout section in its own vertical group
+            EditorGUILayout.BeginVertical();
             showInteractionGeneration = EditorGUILayout.Foldout(showInteractionGeneration, "Interaction Generation", true, bigFoldoutStyle);
             if (showInteractionGeneration)
             {
@@ -269,18 +272,28 @@ namespace OojuInteractionPlugin
                 GUILayout.Space(16);
                 DrawSentenceToInteractionSection(buttonWidth);
             }
+            EditorGUILayout.EndVertical();
+
             GUILayout.Space(20);
+
+            EditorGUILayout.BeginVertical();
             showAddPlayer = EditorGUILayout.Foldout(showAddPlayer, "Player", true, bigFoldoutStyle);
             if (showAddPlayer)
             {
                 DrawAddPlayerSection(buttonWidth);
             }
+            EditorGUILayout.EndVertical();
+
             GUILayout.Space(20);
+
+            EditorGUILayout.BeginVertical();
             showAnimation = EditorGUILayout.Foldout(showAnimation, "Animation", true, bigFoldoutStyle);
             if (showAnimation)
             {
                 DrawAnimationSection();
             }
+            EditorGUILayout.EndVertical();
+
             if (isGeneratingDescription)
             {
                 GUILayout.Space(10);
@@ -1218,7 +1231,7 @@ namespace OojuInteractionPlugin
             }
 
             // Prevent duplicate player in the scene
-            if (GameObject.FindObjectOfType(scriptType) != null)
+            if (GameObject.FindFirstObjectByType(scriptType) != null)
             {
                 EditorUtility.DisplayDialog("Already Exists", "A FirstPersonPlayer object already exists in the scene.", "OK");
                 return;
