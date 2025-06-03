@@ -1,7 +1,7 @@
 {
   "name": "com.ooju.interaction",
   "displayName": "OOJU Interaction",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "unity": "2021.3",
   "description": "A modular Unity Editor extension for AI-powered scene analysis and context-aware interaction generation.",
   "author": {

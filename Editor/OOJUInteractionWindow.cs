@@ -202,29 +202,38 @@ namespace OojuInteractionPlugin
 
         private void OnGUI()
         {
-            DrawHeaderBar();
-            if (styles != null && !styles.IsInitialized)
+            // Wrap the entire OnGUI body in a try-catch block to prevent layout errors from exceptions
+            try
             {
-                styles.Initialize();
+                DrawHeaderBar();
+                if (styles != null && !styles.IsInitialized)
+                {
+                    styles.Initialize();
+                }
+                float contentWidth = position.width - 40f;
+                float buttonWidth = Mathf.Min(250f, contentWidth * 0.7f);
+                // Internal tab UI
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Toggle(currentInteractionTab == InteractionTab.Tools, "Tools", EditorStyles.toolbarButton))
+                    currentInteractionTab = InteractionTab.Tools;
+                if (GUILayout.Toggle(currentInteractionTab == InteractionTab.Settings, "Settings", EditorStyles.toolbarButton))
+                    currentInteractionTab = InteractionTab.Settings;
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space();
+                switch (currentInteractionTab)
+                {
+                    case InteractionTab.Tools:
+                        DrawInteractionToolsTab(contentWidth, buttonWidth);
+                        break;
+                    case InteractionTab.Settings:
+                        DrawSettingsTab();
+                        break;
+                }
             }
-            float contentWidth = position.width - 40f;
-            float buttonWidth = Mathf.Min(250f, contentWidth * 0.7f);
-            // Internal tab UI
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Toggle(currentInteractionTab == InteractionTab.Tools, "Tools", EditorStyles.toolbarButton))
-                currentInteractionTab = InteractionTab.Tools;
-            if (GUILayout.Toggle(currentInteractionTab == InteractionTab.Settings, "Settings", EditorStyles.toolbarButton))
-                currentInteractionTab = InteractionTab.Settings;
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.Space();
-            switch (currentInteractionTab)
+            catch (Exception ex)
             {
-                case InteractionTab.Tools:
-                    DrawInteractionToolsTab(contentWidth, buttonWidth);
-                    break;
-                case InteractionTab.Settings:
-                    DrawSettingsTab();
-                    break;
+                // Log any exception to prevent GUI layout corruption
+                Debug.LogError($"OnGUI Exception: {ex}");
             }
         }
 
@@ -760,16 +769,34 @@ namespace OojuInteractionPlugin
         // Extracts the first C# code block from the LLM result
         private string ExtractCodeBlock(string result)
         {
+            // Try to extract code block wrapped in triple backticks
             int start = result.IndexOf("```csharp");
             if (start == -1) start = result.IndexOf("```cs");
             if (start == -1) start = result.IndexOf("```");
-            if (start == -1) return null;
+            if (start != -1)
+            {
+                int codeStart = result.IndexOf('\n', start);
+                int end = result.IndexOf("```", codeStart + 1);
+                if (codeStart != -1 && end != -1)
+                {
+                    return result.Substring(codeStart + 1, end - codeStart - 1).Trim();
+                }
+            }
 
-            int codeStart = result.IndexOf('\n', start);
-            int end = result.IndexOf("```", codeStart + 1);
-            if (codeStart == -1 || end == -1) return null;
+            // If no code block found, try to extract C# class from plain text (for Claude)
+            // This regex matches a C# class definition including its body
+            var match = System.Text.RegularExpressions.Regex.Match(
+                result,
+                @"(public|private|internal)?\s*class\s+[A-Za-z_][A-Za-z0-9_\s:<>]*\{[\s\S]*?\n\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline
+            );
+            if (match.Success)
+            {
+                return match.Value.Trim();
+            }
 
-            return result.Substring(codeStart + 1, end - codeStart - 1).Trim();
+            // If still nothing, return null
+            return null;
         }
 
         // Extracts suggested object names from the LLM result (simple heuristic)
